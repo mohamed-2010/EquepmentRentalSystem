@@ -33,7 +33,9 @@ jobs:
         run: npm run build
 
       - name: Build Electron app (Windows)
-        run: npm run electron:build:win
+        run: |
+          npm run build
+          npx electron-builder --win --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
