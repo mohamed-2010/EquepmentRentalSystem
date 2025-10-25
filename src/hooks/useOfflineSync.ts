@@ -6,6 +6,7 @@ import {
   getPendingSyncCount,
 } from "@/lib/offline/sync";
 import { toast } from "sonner";
+import { getAllFromLocal } from "@/lib/offline/db";
 
 export function useOfflineSync() {
   const isOnline = useOnlineStatus();
@@ -74,6 +75,39 @@ export function useOfflineSync() {
   useEffect(() => {
     updatePendingCount();
   }, []);
+
+  // Auto pull once on first run in Electron/file or when no prior sync and stores are empty
+  useEffect(() => {
+    (async () => {
+      if (!isOnline) return;
+      const isFile =
+        typeof window !== "undefined" && window.location.protocol === "file:";
+      const isElectron =
+        typeof navigator !== "undefined" &&
+        navigator.userAgent.includes("Electron");
+      const last = localStorage.getItem("last_sync_time");
+      // Check if local stores are essentially empty
+      let emptyStores = 0;
+      try {
+        const [b, c, e] = await Promise.all([
+          getAllFromLocal("branches"),
+          getAllFromLocal("customers"),
+          getAllFromLocal("equipment"),
+        ]);
+        emptyStores = (b?.length || 0) + (c?.length || 0) + (e?.length || 0);
+      } catch {}
+      if ((isFile || isElectron) && (!last || emptyStores === 0)) {
+        try {
+          console.log("🔄 First-run pull for Electron/file protocol...");
+          await pullDataFromBackend();
+          toast.success("تم تحديث البيانات من الخادم");
+          setLastSyncTime(new Date());
+        } catch (err) {
+          console.warn("Initial pull failed:", err);
+        }
+      }
+    })();
+  }, [isOnline]);
 
   return {
     isOnline,

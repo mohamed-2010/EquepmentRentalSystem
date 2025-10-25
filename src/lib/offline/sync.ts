@@ -1,6 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getQueue, removeFromQueue, updateQueueItem, QueueItem } from "./queue";
-import { saveToLocal, getAllFromLocal, clearStore } from "./db";
+import {
+  saveToLocal,
+  getAllFromLocal,
+  clearStore,
+  bulkSaveToLocal,
+} from "./db";
 import { toast } from "sonner";
 
 const MAX_RETRIES = 3;
@@ -205,58 +210,72 @@ export async function pullDataFromBackend(): Promise<void> {
     // Process customers
     if (customersRes.data) {
       await clearStore("customers");
-      // Use transaction-like bulk insert instead of loop
       const customersToSave = customersRes.data.map((customer) => ({
         ...customer,
         synced: true,
       }));
-      for (const customer of customersToSave) {
-        await saveToLocal("customers", customer);
-      }
+      await bulkSaveToLocal("customers", customersToSave);
       console.log(`✅ Synced ${customersRes.data.length} customers`);
     }
 
     // Process equipment
     if (equipmentRes.data) {
       await clearStore("equipment");
-      for (const item of equipmentRes.data) {
-        await saveToLocal("equipment", { ...item, synced: true });
-      }
+      const eqToSave = equipmentRes.data.map((item) => ({
+        ...item,
+        synced: true,
+      }));
+      await bulkSaveToLocal("equipment", eqToSave);
       console.log(`✅ Synced ${equipmentRes.data.length} equipment items`);
     }
 
     // Process rentals
     if (rentalsRes.data) {
       await clearStore("rentals");
-      for (const rental of rentalsRes.data) {
-        await saveToLocal("rentals", { ...rental, synced: true });
-      }
+      const rentalsToSave = rentalsRes.data.map((rental) => ({
+        ...rental,
+        synced: true,
+      }));
+      await bulkSaveToLocal("rentals", rentalsToSave);
       console.log(`✅ Synced ${rentalsRes.data.length} rentals`);
     }
 
     // Process rental_items
     if (rentalItemsRes.data) {
       await clearStore("rental_items");
-      for (const item of rentalItemsRes.data) {
-        await saveToLocal("rental_items", { ...item, synced: true });
-      }
+      const itemsToSave = rentalItemsRes.data.map((item) => ({
+        ...item,
+        synced: true,
+      }));
+      await bulkSaveToLocal("rental_items", itemsToSave);
       console.log(`✅ Synced ${rentalItemsRes.data.length} rental items`);
     }
 
     // Process branches
     if (branchesRes.data) {
       await clearStore("branches");
-      for (const branch of branchesRes.data) {
-        await saveToLocal("branches", { ...branch, synced: true });
-      }
+      const branchesToSave = branchesRes.data.map((branch) => ({
+        ...branch,
+        synced: true,
+      }));
+      await bulkSaveToLocal("branches", branchesToSave);
       console.log(`✅ Synced ${branchesRes.data.length} branches`);
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`✅ All data synced successfully in ${duration}s!`);
     localStorage.setItem("last_sync_time", new Date().toISOString());
-  } catch (error) {
+  } catch (error: any) {
+    // Some Electron builds may throw generic IndexedDB UnknownError on heavy writes.
+    // Log and degrade gracefully instead of crashing the app.
     console.error("❌ Error pulling data from backend:", error);
+    // Don't rethrow UnknownError to keep app usable offline
+    if (String(error?.name || "").includes("UnknownError")) {
+      console.warn(
+        "Proceeding without full local cache due to IndexedDB UnknownError."
+      );
+      return;
+    }
     throw error;
   }
 }

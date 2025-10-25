@@ -204,3 +204,43 @@ export async function clearStore(
   const db = await getDB();
   await db.clear(storeName);
 }
+
+// Initialize the IndexedDB database early to ensure stores are created
+export async function initLocalDB(): Promise<void> {
+  try {
+    await getDB();
+    // Optional marker to help diagnose first-run
+    try {
+      localStorage.setItem("db_initialized_at", new Date().toISOString());
+    } catch {}
+    console.log("IndexedDB initialized (branch-gear-offline)");
+  } catch (e) {
+    console.warn("Failed to initialize IndexedDB:", e);
+  }
+}
+
+export async function bulkSaveToLocal(
+  storeName:
+    | "customers"
+    | "equipment"
+    | "rentals"
+    | "rental_items"
+    | "branches"
+    | "sync_queue",
+  items: any[]
+): Promise<void> {
+  if (!items || items.length === 0) return;
+  const db = await getDB();
+  const tx = db.transaction(storeName, "readwrite");
+  try {
+    for (const item of items) {
+      await tx.store.put(item);
+    }
+    await tx.done;
+  } catch (e) {
+    try {
+      await tx.done.catch(() => {});
+    } catch {}
+    throw e;
+  }
+}
