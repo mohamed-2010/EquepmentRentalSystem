@@ -19,6 +19,7 @@ import Customers from "./pages/Customers";
 import Rentals from "./pages/Rentals";
 import Branches from "./pages/Branches";
 import NotFound from "./pages/NotFound";
+import RentalInvoice from "./pages/RentalInvoice";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -89,6 +90,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Rentals />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/rentals/:id/invoice"
+                  element={
+                    <ProtectedRoute>
+                      <RentalInvoice />
                     </ProtectedRoute>
                   }
                 />

@@ -512,6 +512,15 @@ export default function Rentals() {
                             <Clock className="h-3 w-3" />
                             نشط
                           </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => (window.location.hash = `#/rentals/${rental.id}/invoice`)}
+                            title="طباعة الفاتورة"
+                            className="gap-2"
+                          >
+                            طباعة فاتورة
+                          </Button>
                           {/* Edit / Delete actions */}
                           <Button
                             variant="ghost"
@@ -685,6 +694,15 @@ export default function Rentals() {
                             <CheckCircle className="h-3 w-3" />
                             منتهي
                           </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => (window.location.hash = `#/rentals/${rental.id}/invoice`)}
+                            title="طباعة الفاتورة"
+                            className="gap-2"
+                          >
+                            طباعة فاتورة
+                          </Button>
                           {/* Delete action for completed rental */}
                           <AlertDialog>
                             <AlertDialogTrigger asChild>

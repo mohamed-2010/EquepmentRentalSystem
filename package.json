@@ -1,7 +1,7 @@
 {
   "name": "branch-gear-pro",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.9",
   "main": "electron/main.js",
   "author": "Branch Gear Pro Team",
   "description": "نظام إدارة الفروع والمعدات",
