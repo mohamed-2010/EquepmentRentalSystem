@@ -20,7 +20,9 @@ function createWindow() {
       enableRemoteModule: false,
       preload: path.join(__dirname, "preload.cjs"),
     },
-    icon: path.join(__dirname, "../public/icon.png"),
+    // On Windows the executable icon comes from electron-builder config (win.icon)
+    // The BrowserWindow icon is primarily used on Linux; keep a reasonable default in dev
+    icon: path.join(__dirname, "../public/favicon.ico"),
     title: "Branch Gear Pro",
     backgroundColor: "#ffffff",
     show: false, // Don't show until ready

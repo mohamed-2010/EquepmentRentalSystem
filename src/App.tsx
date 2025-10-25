@@ -2,7 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  HashRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Auth from "./pages/Auth";
@@ -30,61 +36,75 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/setup"
-              element={
-                <ProtectedRoute>
-                  <Setup />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/equipment"
-              element={
-                <ProtectedRoute>
-                  <Equipment />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/customers"
-              element={
-                <ProtectedRoute>
-                  <Customers />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/rentals"
-              element={
-                <ProtectedRoute>
-                  <Rentals />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/branches"
-              element={
-                <ProtectedRoute>
-                  <Branches />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        {(() => {
+          const isFile =
+            typeof window !== "undefined" &&
+            window.location.protocol === "file:";
+          const isElectron =
+            typeof navigator !== "undefined" &&
+            navigator.userAgent.includes("Electron");
+          const Router = isFile || isElectron ? HashRouter : BrowserRouter;
+          return (
+            <Router>
+              <Routes>
+                <Route
+                  path="/"
+                  element={<Navigate to="/dashboard" replace />}
+                />
+                <Route path="/auth" element={<Auth />} />
+                <Route
+                  path="/setup"
+                  element={
+                    <ProtectedRoute>
+                      <Setup />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/equipment"
+                  element={
+                    <ProtectedRoute>
+                      <Equipment />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/customers"
+                  element={
+                    <ProtectedRoute>
+                      <Customers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/rentals"
+                  element={
+                    <ProtectedRoute>
+                      <Rentals />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/branches"
+                  element={
+                    <ProtectedRoute>
+                      <Branches />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Router>
+          );
+        })()}
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
