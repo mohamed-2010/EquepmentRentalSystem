@@ -1,0 +1,25 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.branchgear.pro
+productName: Branch Gear Pro
+files:
+  - filter:
+      - dist/**/*
+      - electron/**/*
+      - package.json
+mac:
+  category: public.app-category.business
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+    - portable
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+electronVersion: 38.4.0
