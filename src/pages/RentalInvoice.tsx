@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getAllFromLocal, getFromLocal, BranchData, CustomerData, EquipmentData } from "@/lib/offline/db";
+import {
+  getAllFromLocal,
+  getFromLocal,
+  BranchData,
+  CustomerData,
+  EquipmentData,
+} from "@/lib/offline/db";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Printer } from "lucide-react";
 
@@ -28,7 +34,9 @@ export default function RentalInvoice() {
       setRental(r || null);
 
       const allItems = await getAllFromLocal("rental_items");
-      const filtered = (allItems || []).filter((ri: AnyRecord) => ri.rental_id === id);
+      const filtered = (allItems || []).filter(
+        (ri: AnyRecord) => ri.rental_id === id
+      );
       setItems(filtered);
 
       // branch
@@ -36,7 +44,8 @@ export default function RentalInvoice() {
         setBranch(r.branches as BranchData);
       } else if (r?.branch_id) {
         const bs = await getAllFromLocal("branches");
-        const b = (bs || []).find((x: BranchData) => x.id === r.branch_id) || null;
+        const b =
+          (bs || []).find((x: BranchData) => x.id === r.branch_id) || null;
         setBranch(b);
       }
 
@@ -45,7 +54,8 @@ export default function RentalInvoice() {
         setCustomer(r.customers as CustomerData);
       } else if (r?.customer_id) {
         const cs = await getAllFromLocal("customers");
-        const c = (cs || []).find((x: CustomerData) => x.id === r.customer_id) || null;
+        const c =
+          (cs || []).find((x: CustomerData) => x.id === r.customer_id) || null;
         setCustomer(c);
       }
     })();
@@ -58,7 +68,14 @@ export default function RentalInvoice() {
       const days = it?.days_count ?? daysBetween(it.start_date, it.return_date);
       const amount = it?.amount ?? rate * days;
       subtotal += Number(amount || 0);
-      return { id: it.id, name: it?.equipment?.name, code: it?.equipment?.code, rate, days, amount };
+      return {
+        id: it.id,
+        name: it?.equipment?.name,
+        code: it?.equipment?.code,
+        rate,
+        days,
+        amount,
+      };
     });
     const tax = 0; // يمكن إضافة ضريبة لاحقاً
     const total = subtotal + tax;
@@ -79,7 +96,9 @@ export default function RentalInvoice() {
               </Button>
             </Link>
           </div>
-          <div className="text-center text-muted-foreground">لا يوجد عقد بهذا الرقم</div>
+          <div className="text-center text-muted-foreground">
+            لا يوجد عقد بهذا الرقم
+          </div>
         </div>
       </div>
     );
@@ -97,38 +116,60 @@ export default function RentalInvoice() {
         <div className="flex justify-between items-start p-6 border-b">
           <div>
             <h1 className="text-2xl font-bold">فاتورة إيجار</h1>
-            <p className="text-sm text-muted-foreground">رقم العقد: {rental.id}</p>
+            <p className="text-sm text-muted-foreground">
+              رقم العقد: {rental.id}
+            </p>
           </div>
           <div className="text-right">
-            <div className="font-semibold text-lg">{branch?.company_name || branch?.name || "الفرع"}</div>
+            <div className="font-semibold text-lg">
+              {branch?.company_name || branch?.name || "الفرع"}
+            </div>
             {branch?.tax_number && (
               <div className="text-sm">الرقم الضريبي: {branch.tax_number}</div>
             )}
             {branch?.commercial_registration && (
-              <div className="text-sm">السجل التجاري: {branch.commercial_registration}</div>
+              <div className="text-sm">
+                السجل التجاري: {branch.commercial_registration}
+              </div>
             )}
-            {branch?.phone && <div className="text-sm">هاتف: {branch.phone}</div>}
+            {branch?.phone && (
+              <div className="text-sm">هاتف: {branch.phone}</div>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 p-6">
           <div>
             <div className="text-sm text-muted-foreground">العميل</div>
-            <div className="font-medium">{customer?.full_name || rental.customers?.full_name || "-"}</div>
-            <div className="text-sm">{customer?.phone || rental.customers?.phone || "-"}</div>
+            <div className="font-medium">
+              {customer?.full_name || rental.customers?.full_name || "-"}
+            </div>
+            <div className="text-sm">
+              {customer?.phone || rental.customers?.phone || "-"}
+            </div>
           </div>
           <div className="text-right">
             <div className="text-sm text-muted-foreground">تفاصيل العقد</div>
-            <div className="text-sm">النوع: {rental.rental_type === "monthly" ? "شهري" : "يومي"}</div>
-            <div className="text-sm">تاريخ البداية: {String(rental.start_date).slice(0,10)}</div>
+            <div className="text-sm">
+              النوع: {rental.rental_type === "monthly" ? "شهري" : "يومي"}
+            </div>
+            <div className="text-sm">
+              تاريخ البداية: {String(rental.start_date).slice(0, 10)}
+            </div>
             {rental.end_date && (
-              <div className="text-sm">تاريخ النهاية: {String(rental.end_date).slice(0,10)}</div>
+              <div className="text-sm">
+                تاريخ النهاية: {String(rental.end_date).slice(0, 10)}
+              </div>
             )}
             {rental.is_fixed_duration && rental.expected_end_date && (
-              <div className="text-sm">الإرجاع المتوقع: {String(rental.expected_end_date).slice(0,10)}</div>
+              <div className="text-sm">
+                الإرجاع المتوقع: {String(rental.expected_end_date).slice(0, 10)}
+              </div>
             )}
             {rental.status && (
-              <div className="text-sm">الحالة: {rental.status === "completed" ? "منتهي" : "نشط"}</div>
+              <div className="text-sm">
+                الحالة: {rental.status === "completed" ? "منتهي" : "نشط"}
+              </div>
             )}
           </div>
         </div>
@@ -149,24 +190,40 @@ export default function RentalInvoice() {
                 <tr key={ln.id}>
                   <td className="p-2 border">{ln.name || "-"}</td>
                   <td className="p-2 border">{ln.code || "-"}</td>
-                  <td className="p-2 border">{Number(ln.rate || 0).toFixed(2)}</td>
+                  <td className="p-2 border">
+                    {Number(ln.rate || 0).toFixed(2)}
+                  </td>
                   <td className="p-2 border">{ln.days}</td>
-                  <td className="p-2 border">{Number(ln.amount || 0).toFixed(2)}</td>
+                  <td className="p-2 border">
+                    {Number(ln.amount || 0).toFixed(2)}
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td className="p-2 border text-right" colSpan={4}>المجموع</td>
-                <td className="p-2 border font-semibold">{totals.subtotal.toFixed(2)}</td>
+                <td className="p-2 border text-right" colSpan={4}>
+                  المجموع
+                </td>
+                <td className="p-2 border font-semibold">
+                  {totals.subtotal.toFixed(2)}
+                </td>
               </tr>
               <tr>
-                <td className="p-2 border text-right" colSpan={4}>الضريبة</td>
-                <td className="p-2 border font-semibold">{totals.tax.toFixed(2)}</td>
+                <td className="p-2 border text-right" colSpan={4}>
+                  الضريبة
+                </td>
+                <td className="p-2 border font-semibold">
+                  {totals.tax.toFixed(2)}
+                </td>
               </tr>
               <tr>
-                <td className="p-2 border text-right" colSpan={4}>الإجمالي النهائي</td>
-                <td className="p-2 border font-bold text-primary">{totals.total.toFixed(2)}</td>
+                <td className="p-2 border text-right" colSpan={4}>
+                  الإجمالي النهائي
+                </td>
+                <td className="p-2 border font-bold text-primary">
+                  {totals.total.toFixed(2)}
+                </td>
               </tr>
             </tfoot>
           </table>

@@ -515,7 +515,9 @@ export default function Rentals() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => (window.location.hash = `#/rentals/${rental.id}/invoice`)}
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                            }
                             title="طباعة الفاتورة"
                             className="gap-2"
                           >
@@ -697,7 +699,9 @@ export default function Rentals() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => (window.location.hash = `#/rentals/${rental.id}/invoice`)}
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                            }
                             title="طباعة الفاتورة"
                             className="gap-2"
                           >
