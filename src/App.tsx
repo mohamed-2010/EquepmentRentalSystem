@@ -18,8 +18,11 @@ import Equipment from "./pages/Equipment";
 import Customers from "./pages/Customers";
 import Rentals from "./pages/Rentals";
 import Branches from "./pages/Branches";
+import Maintenance from "./pages/Maintenance";
+import Expenses from "./pages/Expenses";
 import NotFound from "./pages/NotFound";
 import RentalInvoice from "./pages/RentalInvoice";
+import RentalContract from "./pages/RentalContract";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,10 +97,34 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/maintenance"
+                  element={
+                    <ProtectedRoute>
+                      <Maintenance />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/expenses"
+                  element={
+                    <ProtectedRoute>
+                      <Expenses />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/rentals/:id/invoice"
                   element={
                     <ProtectedRoute>
                       <RentalInvoice />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/rentals/:id/contract"
+                  element={
+                    <ProtectedRoute>
+                      <RentalContract />
                     </ProtectedRoute>
                   }
                 />

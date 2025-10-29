@@ -32,6 +32,8 @@ import {
   X,
   Pencil,
   Trash2,
+  Printer,
+  FileText,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -57,6 +59,7 @@ import {
 
 interface RentalEquipment {
   equipmentId: string;
+  quantity: number;
   notes: string;
 }
 
@@ -70,8 +73,9 @@ export default function Rentals() {
   );
   const [expectedEndDate, setExpectedEndDate] = useState("");
   const [rentalEquipment, setRentalEquipment] = useState<RentalEquipment[]>([
-    { equipmentId: "", notes: "" },
+    { equipmentId: "", quantity: 1, notes: "" },
   ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const isOnline = useOnlineStatus();
 
@@ -137,6 +141,14 @@ export default function Rentals() {
   });
 
   const handleCreateRental = async () => {
+    // منع الضغط المتكرر
+    if (isSubmitting) {
+      console.log("[Rentals] Already submitting, ignoring duplicate request");
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
       console.log("[Rentals] Starting rental creation");
 
@@ -195,16 +207,17 @@ export default function Rentals() {
         .map((item) => ({
           equipment_id: item.equipmentId,
           start_date: startDate,
+          quantity: item.quantity,
           notes: item.notes,
         }));
 
       // استخدام الـ hook لإنشاء الإيجار
-      await createRental(rentalData, equipmentItems);
+      const newRental = await createRental(rentalData, equipmentItems);
 
       // إعادة تعيين النموذج
       setIsDialogOpen(false);
       setSelectedCustomer("");
-      setRentalEquipment([{ equipmentId: "", notes: "" }]);
+      setRentalEquipment([{ equipmentId: "", quantity: 1, notes: "" }]);
       setRentalType("daily");
       setIsFixedDuration(true);
       setStartDate(new Date().toISOString().split("T")[0]);
@@ -216,6 +229,13 @@ export default function Rentals() {
           ? "تم تسجيل الإيجار بنجاح"
           : "تم تسجيل الإيجار محلياً. سيتم المزامنة عند عودة الاتصال.",
       });
+
+      // فتح صفحة العقد للطباعة بعد التأكد من حفظ البيانات
+      if (newRental && newRental.id) {
+        setTimeout(() => {
+          window.location.hash = `#/rentals/${newRental.id}/contract`;
+        }, 1000);
+      }
     } catch (error: any) {
       console.error("[Rentals] Error:", error);
       toast({
@@ -223,11 +243,16 @@ export default function Rentals() {
         description: error.message || "حدث خطأ أثناء تسجيل الإيجار",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const addEquipmentRow = () => {
-    setRentalEquipment([...rentalEquipment, { equipmentId: "", notes: "" }]);
+    setRentalEquipment([
+      ...rentalEquipment,
+      { equipmentId: "", quantity: 1, notes: "" },
+    ]);
   };
 
   const removeEquipmentRow = (index: number) => {
@@ -239,7 +264,7 @@ export default function Rentals() {
   const updateEquipmentRow = (
     index: number,
     field: keyof RentalEquipment,
-    value: string
+    value: string | number
   ) => {
     const updated = [...rentalEquipment];
     updated[index] = { ...updated[index], [field]: value };
@@ -253,6 +278,10 @@ export default function Rentals() {
   const activeRentals = rentals?.filter((r) => r.status === "active") || [];
   const completedRentals =
     rentals?.filter((r) => r.status === "completed") || [];
+  const dailyRentals = activeRentals.filter((r) => r.rental_type === "daily");
+  const monthlyRentals = activeRentals.filter(
+    (r) => r.rental_type === "monthly"
+  );
 
   const [editRentalOpen, setEditRentalOpen] = useState<{
     open: boolean;
@@ -418,6 +447,22 @@ export default function Rentals() {
                               }
                             />
                           </div>
+                          <div className="w-32 space-y-2">
+                            <Label>العدد</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateEquipmentRow(
+                                  index,
+                                  "quantity",
+                                  parseInt(e.target.value) || 1
+                                )
+                              }
+                              placeholder="1"
+                            />
+                          </div>
                           {rentalEquipment.length > 1 && (
                             <Button
                               type="button"
@@ -450,18 +495,20 @@ export default function Rentals() {
                   <Button
                     variant="outline"
                     onClick={() => setIsDialogOpen(false)}
+                    disabled={isSubmitting}
                   >
                     إلغاء
                   </Button>
                   <Button
                     onClick={handleCreateRental}
                     disabled={
+                      isSubmitting ||
                       !selectedCustomer ||
                       rentalEquipment.every((e) => !e.equipmentId) ||
                       (isFixedDuration && !expectedEndDate)
                     }
                   >
-                    تأكيد وطباعة العقد
+                    {isSubmitting ? "جاري الحفظ..." : "تأكيد وطباعة العقد"}
                   </Button>
                 </div>
               </div>
@@ -469,25 +516,28 @@ export default function Rentals() {
           </Dialog>
         </div>
 
-        <Tabs defaultValue="active" dir="rtl">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="active">
-              الإيجارات الجارية ({activeRentals.length})
+        <Tabs defaultValue="daily" dir="rtl">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="daily">
+              الإيجارات اليومية ({dailyRentals.length})
+            </TabsTrigger>
+            <TabsTrigger value="monthly">
+              الشهرية (خاص) ({monthlyRentals.length})
             </TabsTrigger>
             <TabsTrigger value="completed">
               الإيجارات المنتهية ({completedRentals.length})
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="space-y-4">
-            {activeRentals.length === 0 ? (
+          <TabsContent value="daily" className="space-y-4">
+            {dailyRentals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8 text-muted-foreground">
-                  لا توجد إيجارات جارية حالياً
+                  لا توجد إيجارات يومية حالياً
                 </CardContent>
               </Card>
             ) : (
-              activeRentals.map((rental) => {
+              dailyRentals.map((rental) => {
                 const items = getRentalItems(rental.id);
                 const activeItems = items.filter((i) => !i.return_date);
 
@@ -505,15 +555,25 @@ export default function Rentals() {
                           </p>
                         </div>
                         <div className="flex gap-2">
-                          <Badge variant="outline">
-                            {rental.rental_type === "daily" ? "يومي" : "شهري"}
-                          </Badge>
+                          <Badge variant="outline">يومي</Badge>
                           <Badge className="gap-1">
                             <Clock className="h-3 w-3" />
                             نشط
                           </Badge>
                           <Button
-                            variant="outline"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                            }
+                            title="طباعة العقد"
+                            className="gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            طباعة العقد
+                          </Button>
+                          <Button
+                            variant="default"
                             size="sm"
                             onClick={() =>
                               (window.location.hash = `#/rentals/${rental.id}/invoice`)
@@ -521,6 +581,7 @@ export default function Rentals() {
                             title="طباعة الفاتورة"
                             className="gap-2"
                           >
+                            <Printer className="h-4 w-4" />
                             طباعة فاتورة
                           </Button>
                           {/* Edit / Delete actions */}
@@ -617,10 +678,421 @@ export default function Rentals() {
                                 <span className="text-sm text-muted-foreground">
                                   ({item.equipment?.code || "-"})
                                 </span>
+                                {item.quantity && item.quantity > 1 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    × {item.quantity}
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                                 <DollarSign className="h-3 w-3" />
                                 <span>
+                                  الكمية: {item.quantity || 1} | السعر:{" "}
+                                  {item.equipment?.daily_rate || 0} ريال/يوم
+                                </span>
+                              </div>
+                              {item.notes && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {item.notes}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                const returnDate = new Date()
+                                  .toISOString()
+                                  .split("T")[0];
+                                await returnRentalItem(item.id, returnDate);
+                                toast({
+                                  title: "تم الإرجاع",
+                                  description: "تم إرجاع المعدة بنجاح",
+                                });
+                              }}
+                              className="gap-2"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              إرجاع
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {userRole?.role === "admin" && rental.branches && (
+                        <Badge variant="outline">
+                          {rental.branches?.name || "-"}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </TabsContent>
+
+          <TabsContent value="monthly" className="space-y-4">
+            {monthlyRentals.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-8 text-muted-foreground">
+                  لا توجد إيجارات شهرية (خاص) حالياً
+                </CardContent>
+              </Card>
+            ) : (
+              monthlyRentals.map((rental) => {
+                const items = getRentalItems(rental.id);
+                const activeItems = items.filter((i) => !i.return_date);
+
+                return (
+                  <Card key={rental.id}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <CardTitle className="flex items-center gap-2">
+                            <User className="h-5 w-5" />
+                            {rental.customers?.full_name || "عميل غير معروف"}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            {rental.customers?.phone || "-"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant="outline">شهري (خاص)</Badge>
+                          <Badge className="gap-1">
+                            <Clock className="h-3 w-3" />
+                            نشط
+                          </Badge>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                            }
+                            title="طباعة العقد"
+                            className="gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            طباعة العقد
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                            }
+                            title="طباعة الفاتورة"
+                            className="gap-2"
+                          >
+                            <Printer className="h-4 w-4" />
+                            طباعة فاتورة
+                          </Button>
+                          {/* Edit / Delete actions */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditRental(rental)}
+                            title="تعديل"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" title="حذف">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertHeader>
+                                <AlertDialogTitle>
+                                  تأكيد حذف عقد الإيجار
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  سيتم حذف هذا العقد وجميع عناصره المرتبطة.
+                                </AlertDialogDescription>
+                              </AlertHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={async () => {
+                                    await deleteRental(rental.id);
+                                    toast({ title: "تم حذف العقد" });
+                                  }}
+                                >
+                                  حذف
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            بدأ في:{" "}
+                            {format(
+                              new Date(rental.start_date),
+                              "dd MMMM yyyy",
+                              { locale: ar }
+                            )}
+                          </span>
+                        </div>
+                        {rental.is_fixed_duration &&
+                          rental.expected_end_date && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span>
+                                الإرجاع المتوقع:{" "}
+                                {format(
+                                  new Date(rental.expected_end_date),
+                                  "dd MMMM yyyy",
+                                  { locale: ar }
+                                )}
+                              </span>
+                              {new Date(rental.expected_end_date) <
+                                new Date() && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-xs"
+                                >
+                                  متأخر
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm">المعدات النشطة:</Label>
+                        {activeItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">
+                                  {item.equipment?.name || "معدة غير معروفة"}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  ({item.equipment?.code || "-"})
+                                </span>
+                                {item.quantity && item.quantity > 1 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    × {item.quantity}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                <DollarSign className="h-3 w-3" />
+                                <span>
+                                  الكمية: {item.quantity || 1} | السعر:{" "}
+                                  {item.equipment?.daily_rate || 0} ريال/شهر
+                                </span>
+                              </div>
+                              {item.notes && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {item.notes}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                const returnDate = new Date()
+                                  .toISOString()
+                                  .split("T")[0];
+                                await returnRentalItem(item.id, returnDate);
+                                toast({
+                                  title: "تم الإرجاع",
+                                  description: "تم إرجاع المعدة بنجاح",
+                                });
+                              }}
+                              className="gap-2"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              إرجاع
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {userRole?.role === "admin" && rental.branches && (
+                        <Badge variant="outline">
+                          {rental.branches?.name || "-"}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </TabsContent>
+
+          {/* <TabsContent value="completed" className="space-y-4">
+            {activeRentals.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-8 text-muted-foreground">
+                  لا توجد إيجارات جارية حالياً
+                </CardContent>
+              </Card>
+            ) : (
+              activeRentals.map((rental) => {
+                const items = getRentalItems(rental.id);
+                const activeItems = items.filter((i) => !i.return_date);
+
+                return (
+                  <Card key={rental.id}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <CardTitle className="flex items-center gap-2">
+                            <User className="h-5 w-5" />
+                            {rental.customers?.full_name || "عميل غير معروف"}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            {rental.customers?.phone || "-"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant="outline">
+                            {rental.rental_type === "daily" ? "يومي" : "شهري"}
+                          </Badge>
+                          <Badge className="gap-1">
+                            <Clock className="h-3 w-3" />
+                            نشط
+                          </Badge>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                            }
+                            title="طباعة العقد"
+                            className="gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            طباعة العقد
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                            }
+                            title="طباعة الفاتورة"
+                            className="gap-2"
+                          >
+                            <Printer className="h-4 w-4" />
+                            طباعة فاتورة
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditRental(rental)}
+                            title="تعديل"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" title="حذف">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertHeader>
+                                <AlertDialogTitle>
+                                  تأكيد حذف عقد الإيجار
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  سيتم حذف هذا العقد وجميع عناصره المرتبطة.
+                                </AlertDialogDescription>
+                              </AlertHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={async () => {
+                                    await deleteRental(rental.id);
+                                    toast({ title: "تم حذف العقد" });
+                                  }}
+                                >
+                                  حذف
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            بدأ في:{" "}
+                            {format(
+                              new Date(rental.start_date),
+                              "dd MMMM yyyy",
+                              { locale: ar }
+                            )}
+                          </span>
+                        </div>
+                        {rental.is_fixed_duration &&
+                          rental.expected_end_date && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span>
+                                الإرجاع المتوقع:{" "}
+                                {format(
+                                  new Date(rental.expected_end_date),
+                                  "dd MMMM yyyy",
+                                  { locale: ar }
+                                )}
+                              </span>
+                              {new Date(rental.expected_end_date) <
+                                new Date() && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-xs"
+                                >
+                                  متأخر
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm">المعدات النشطة:</Label>
+                        {activeItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">
+                                  {item.equipment?.name || "معدة غير معروفة"}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  ({item.equipment?.code || "-"})
+                                </span>
+                                {item.quantity && item.quantity > 1 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    × {item.quantity}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                <DollarSign className="h-3 w-3" />
+                                <span>
+                                  الكمية: {item.quantity || 1} | السعر:{" "}
                                   {item.equipment?.daily_rate || 0} ريال/
                                   {rental.rental_type === "daily"
                                     ? "يوم"
@@ -665,7 +1137,7 @@ export default function Rentals() {
                 );
               })
             )}
-          </TabsContent>
+          </TabsContent> */}
 
           <TabsContent value="completed" className="space-y-4">
             {completedRentals.length === 0 ? (
@@ -700,12 +1172,25 @@ export default function Rentals() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
+                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                            }
+                            title="عرض العقد"
+                            className="gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            العقد
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() =>
                               (window.location.hash = `#/rentals/${rental.id}/invoice`)
                             }
                             title="طباعة الفاتورة"
                             className="gap-2"
                           >
-                            طباعة فاتورة
+                            <Printer className="h-4 w-4" />
+                            فاتورة
                           </Button>
                           {/* Delete action for completed rental */}
                           <AlertDialog>
@@ -779,14 +1264,25 @@ export default function Rentals() {
                               <span className="font-medium">
                                 {item.equipment?.name || "معدة غير معروفة"}
                               </span>
+                              {item.quantity && item.quantity > 1 && (
+                                <Badge variant="outline" className="text-xs">
+                                  × {item.quantity}
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex justify-between text-sm">
                               <span className="text-muted-foreground">
-                                المدة: {item.days_count}{" "}
+                                الكمية: {item.quantity || 1} | المدة:{" "}
+                                {item.days_count}{" "}
                                 {rental.rental_type === "daily" ? "يوم" : "شهر"}
                               </span>
                               <span className="font-bold text-primary">
-                                {item.amount} ريال
+                                {(
+                                  (item.equipment?.daily_rate || 0) *
+                                  (item.days_count || 0) *
+                                  (item.quantity || 1)
+                                ).toFixed(2)}{" "}
+                                ريال
                               </span>
                             </div>
                           </div>
@@ -798,7 +1294,16 @@ export default function Rentals() {
                           الإجمالي:
                         </span>
                         <span className="text-2xl font-bold text-primary">
-                          {rental.total_amount} ريال
+                          {items
+                            .reduce((sum, item) => {
+                              const amount =
+                                (item.equipment?.daily_rate || 0) *
+                                (item.days_count || 0) *
+                                (item.quantity || 1);
+                              return sum + amount;
+                            }, 0)
+                            .toFixed(2)}{" "}
+                          ريال
                         </span>
                       </div>
                     </CardContent>

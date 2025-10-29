@@ -43,6 +43,7 @@ interface Equipment {
   code: string;
   category: string;
   daily_rate: number;
+  quantity?: number;
   status: "available" | "rented" | "maintenance";
   notes?: string;
 }
@@ -50,11 +51,13 @@ interface Equipment {
 const Equipment = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     code: "",
     category: "",
     daily_rate: "",
+    quantity: "1",
     status: "available" as const,
     notes: "",
   });
@@ -65,6 +68,7 @@ const Equipment = () => {
     code: "",
     category: "",
     daily_rate: "",
+    quantity: "1",
     status: "available" as const,
     notes: "",
   });
@@ -81,6 +85,14 @@ const Equipment = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // منع الضغط المتكرر
+    if (isSubmitting) {
+      console.log("[Equipment] Already submitting, ignoring duplicate request");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       // Resolve branch id from multiple sources with robust fallbacks
@@ -187,6 +199,7 @@ const Equipment = () => {
         code: formData.code,
         category: formData.category,
         daily_rate: parseFloat(formData.daily_rate),
+        quantity: parseInt(formData.quantity) || 1,
         status: formData.status,
         notes: formData.notes,
         branch_id: branchId,
@@ -203,11 +216,14 @@ const Equipment = () => {
         code: "",
         category: "",
         daily_rate: "",
+        quantity: "1",
         status: "available",
         notes: "",
       });
     } catch (error: any) {
       toast.error(error.message || "حدث خطأ في إضافة المعدة");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -243,6 +259,7 @@ const Equipment = () => {
       code: item.code || "",
       category: item.category || "",
       daily_rate: String(item.daily_rate ?? ""),
+      quantity: String(item.quantity ?? "1"),
       status: item.status || "available",
       notes: item.notes || "",
     });
@@ -258,6 +275,7 @@ const Equipment = () => {
         code: editData.code,
         category: editData.category,
         daily_rate: parseFloat(editData.daily_rate || "0"),
+        quantity: parseInt(editData.quantity) || 1,
         status: editData.status as any,
         notes: editData.notes,
       } as any);
@@ -362,8 +380,12 @@ const Equipment = () => {
                     }
                   />
                 </div>
-                <Button type="submit" className="w-full">
-                  إضافة
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "جاري الحفظ..." : "إضافة"}
                 </Button>
               </form>
             </DialogContent>

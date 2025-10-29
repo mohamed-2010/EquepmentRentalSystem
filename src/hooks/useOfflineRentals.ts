@@ -161,13 +161,14 @@ export function useOfflineRentals() {
     equipmentRate: number
   ) => {
     if (!item.return_date) return { days: 0, amount: 0 };
+    const quantity = item.quantity || 1; // الكمية
     if (rental.rental_type === "monthly") {
       const days = daysBetween(item.start_date, item.return_date);
       const months = Math.max(1, Math.ceil(days / 30));
-      return { days: months, amount: months * (equipmentRate || 0) };
+      return { days: months, amount: months * (equipmentRate || 0) * quantity };
     } else {
       const days = daysBetween(item.start_date, item.return_date);
-      return { days, amount: days * (equipmentRate || 0) };
+      return { days, amount: days * (equipmentRate || 0) * quantity };
     }
   };
 
@@ -181,6 +182,136 @@ export function useOfflineRentals() {
       synced: false,
     };
 
+    // إذا كان online، حاول الحفظ في Supabase أولاً
+    if (isOnline) {
+      try {
+        const { data: rental, error: rentalError } = await supabase
+          .from("rentals")
+          .insert({
+            customer_id: rentalData.customer_id,
+            equipment_id: rentalData.equipment_id,
+            branch_id: rentalData.branch_id,
+            created_by: rentalData.created_by,
+            start_date: rentalData.start_date,
+            status: rentalData.status,
+            rental_type: rentalData.rental_type,
+            is_fixed_duration: rentalData.is_fixed_duration,
+            expected_end_date: rentalData.expected_end_date,
+          })
+          .select()
+          .single();
+
+        if (rentalError) throw rentalError;
+
+        if (rental) {
+          // استخدم ID من Supabase
+          newRental.id = rental.id;
+          newRental.synced = true;
+
+          // حفظ عناصر الإيجار في Supabase
+          const itemsToInsert = equipmentItems.map((item) => ({
+            rental_id: rental.id,
+            equipment_id: item.equipment_id,
+            start_date: item.start_date,
+            quantity: item.quantity || 1,
+            notes: item.notes,
+          }));
+
+          const { data: insertedItems } = await supabase
+            .from("rental_items")
+            .insert(itemsToInsert)
+            .select();
+
+          // تحديث حالة المعدات في Supabase
+          for (const item of equipmentItems) {
+            await supabase
+              .from("equipment")
+              .update({ status: "rented" })
+              .eq("id", item.equipment_id);
+          }
+
+          // حفظ في IndexedDB مع synced=true
+          await saveToLocal("rentals", newRental);
+
+          // Get equipment data for enrichment
+          const equipment = await getAllFromLocal("equipment");
+          const enrichedItems = [];
+
+          // حفظ عناصر الإيجار في IndexedDB
+          if (insertedItems) {
+            for (const item of insertedItems) {
+              const rentalItem: RentalItemData = {
+                ...item,
+                synced: true,
+              };
+
+              await saveToLocal("rental_items", rentalItem);
+
+              // Enrich rental item with equipment data
+              const equip = equipment?.find(
+                (e: any) => e.id === item.equipment_id
+              );
+              enrichedItems.push({
+                ...rentalItem,
+                equipment: equip
+                  ? {
+                      name: equip.name,
+                      code: equip.code,
+                      daily_rate: equip.daily_rate,
+                    }
+                  : null,
+              });
+
+              // تحديث حالة المعدة في IndexedDB
+              const equipmentToUpdate = equipment.find(
+                (e: any) => e.id === item.equipment_id
+              );
+              if (equipmentToUpdate) {
+                const updatedEquipment = {
+                  ...equipmentToUpdate,
+                  status: "rented",
+                  updated_at: new Date().toISOString(),
+                  synced: true,
+                };
+                await saveToLocal("equipment", updatedEquipment);
+              }
+            }
+          }
+
+          // Enrich rental with customer and branch data
+          const customers = await getAllFromLocal("customers");
+          const branches = await getAllFromLocal("branches");
+
+          const customer = customers?.find(
+            (c: any) => c.id === rentalData.customer_id
+          );
+          const branch = branches?.find(
+            (b: any) => b.id === rentalData.branch_id
+          );
+
+          const enrichedRental = {
+            ...newRental,
+            customers: customer
+              ? { full_name: customer.full_name, phone: customer.phone }
+              : null,
+            branches: branch ? { name: branch.name } : null,
+          };
+
+          setRentals((prev) => [enrichedRental, ...prev]);
+          setRentalItems((prev) => [...enrichedItems, ...prev]);
+
+          return enrichedRental;
+        }
+      } catch (error) {
+        console.error(
+          "Error syncing rental to Supabase, falling back to offline mode:",
+          error
+        );
+        // إذا فشل الحفظ في Supabase، استمر في الوضع offline
+      }
+    }
+
+    // الوضع Offline أو فشل الحفظ في Supabase
     // حفظ الإيجار محلياً
     await saveToLocal("rentals", newRental);
     await addToQueue("rentals", "insert", newRental);
@@ -196,6 +327,7 @@ export function useOfflineRentals() {
         rental_id: rentalId,
         equipment_id: item.equipment_id,
         start_date: item.start_date,
+        quantity: item.quantity || 1,
         notes: item.notes,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -231,54 +363,6 @@ export function useOfflineRentals() {
         };
         await saveToLocal("equipment", updatedEquipment);
         await addToQueue("equipment", "update", updatedEquipment);
-      }
-    }
-
-    // إذا كان online، حاول الحفظ في Supabase
-    if (isOnline) {
-      try {
-        const { data: rental, error: rentalError } = await supabase
-          .from("rentals")
-          .insert({
-            customer_id: rentalData.customer_id,
-            equipment_id: rentalData.equipment_id,
-            branch_id: rentalData.branch_id,
-            created_by: rentalData.created_by,
-            start_date: rentalData.start_date,
-            status: rentalData.status,
-            rental_type: rentalData.rental_type,
-            is_fixed_duration: rentalData.is_fixed_duration,
-            expected_end_date: rentalData.expected_end_date,
-          })
-          .select()
-          .single();
-
-        if (!rentalError && rental) {
-          // حفظ عناصر الإيجار في Supabase
-          const itemsToInsert = equipmentItems.map((item) => ({
-            rental_id: rental.id,
-            equipment_id: item.equipment_id,
-            start_date: item.start_date,
-            notes: item.notes,
-          }));
-
-          await supabase.from("rental_items").insert(itemsToInsert);
-
-          // تحديث حالة المعدات في Supabase
-          for (const item of equipmentItems) {
-            await supabase
-              .from("equipment")
-              .update({ status: "rented" })
-              .eq("id", item.equipment_id);
-          }
-
-          // تحديث حالة المزامنة
-          newRental.synced = true;
-          await saveToLocal("rentals", newRental);
-        }
-      } catch (error) {
-        console.error("Error syncing rental to Supabase:", error);
-        // الحفظ المحلي نجح، سيتم المزامنة لاحقاً
       }
     }
 

@@ -1,5 +1,14 @@
-import { LayoutDashboard, Package, Users, FileText, Building2, LogOut } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  FileText,
+  Building2,
+  LogOut,
+  Wrench,
+  DollarSign,
+} from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -11,27 +20,29 @@ import {
   SidebarMenuItem,
   SidebarFooter,
   useSidebar,
-} from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/auth';
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
 
 const menuItems = [
-  { title: 'لوحة التحكم', url: '/dashboard', icon: LayoutDashboard },
-  { title: 'المعدات', url: '/equipment', icon: Package },
-  { title: 'العملاء', url: '/customers', icon: Users },
-  { title: 'الإيجارات', url: '/rentals', icon: FileText },
-  { title: 'الفروع', url: '/branches', icon: Building2 },
+  { title: "لوحة التحكم", url: "/dashboard", icon: LayoutDashboard },
+  { title: "المعدات", url: "/equipment", icon: Package },
+  { title: "العملاء", url: "/customers", icon: Users },
+  { title: "الإيجارات", url: "/rentals", icon: FileText },
+  { title: "الصيانة", url: "/maintenance", icon: Wrench },
+  { title: "المصروفات", url: "/expenses", icon: DollarSign },
+  { title: "الفروع", url: "/branches", icon: Building2 },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const { signOut } = useAuth();
   const navigate = useNavigate();
-  const collapsed = state === 'collapsed';
+  const collapsed = state === "collapsed";
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/auth');
+    navigate("/auth");
   };
 
   return (
@@ -41,26 +52,32 @@ export function AppSidebar() {
           <Package className="h-8 w-8 text-sidebar-foreground" />
           {!collapsed && (
             <div>
-              <h2 className="text-lg font-bold text-sidebar-foreground">نظام الإيجار</h2>
-              <p className="text-xs text-sidebar-foreground/80">إدارة المعدات</p>
+              <h2 className="text-lg font-bold text-sidebar-foreground">
+                نظام الإيجار
+              </h2>
+              <p className="text-xs text-sidebar-foreground/80">
+                إدارة المعدات
+              </p>
             </div>
           )}
         </div>
-        
+
         <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? 'sr-only' : ''}>القائمة الرئيسية</SidebarGroupLabel>
+          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+            القائمة الرئيسية
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
+                    <NavLink
+                      to={item.url}
                       end
                       className={({ isActive }) =>
-                        isActive 
-                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
-                          : 'hover:bg-sidebar-accent/50 text-sidebar-foreground'
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : "hover:bg-sidebar-accent/50 text-sidebar-foreground"
                       }
                     >
                       <item.icon className="h-5 w-5" />

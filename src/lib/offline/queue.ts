@@ -3,7 +3,14 @@ import { v4 as uuidv4 } from "uuid";
 
 export interface QueueItem {
   id: string;
-  table: "customers" | "equipment" | "rentals" | "rental_items" | "branches";
+  table:
+    | "customers"
+    | "equipment"
+    | "rentals"
+    | "rental_items"
+    | "branches"
+    | "maintenance_requests"
+    | "expenses";
   operation: "insert" | "update" | "delete";
   data: any;
   timestamp: number;

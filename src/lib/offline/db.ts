@@ -18,6 +18,7 @@ export interface EquipmentData {
   code: string;
   category?: string;
   daily_rate: number;
+  quantity?: number;
   status: string;
   notes?: string;
   branch_id: string;
@@ -49,6 +50,7 @@ export interface RentalItemData {
   rental_id: string;
   equipment_id: string;
   start_date: string;
+  quantity?: number;
   return_date?: string;
   days_count?: number;
   amount?: number;
@@ -71,9 +73,47 @@ export interface BranchData {
   synced: boolean;
 }
 
+export interface MaintenanceRequestData {
+  id: string;
+  customer_id: string;
+  equipment_id?: string;
+  branch_id: string;
+  created_by: string;
+  request_date: string;
+  description: string;
+  status: string;
+  cost?: number;
+  notes?: string;
+  completed_date?: string;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+}
+
+export interface ExpenseData {
+  id: string;
+  branch_id: string;
+  created_by: string;
+  expense_date: string;
+  category: string;
+  description: string;
+  amount: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+}
+
 export interface QueueData {
   id: string;
-  table: "customers" | "equipment" | "rentals" | "rental_items" | "branches";
+  table:
+    | "customers"
+    | "equipment"
+    | "rentals"
+    | "rental_items"
+    | "branches"
+    | "maintenance_requests"
+    | "expenses";
   operation: "insert" | "update" | "delete";
   data: any;
   timestamp: number;
@@ -85,7 +125,7 @@ let dbInstance: IDBPDatabase | null = null;
 export async function getDB(): Promise<IDBPDatabase> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB("branch-gear-offline", 3, {
+  dbInstance = await openDB("branch-gear-offline", 5, {
     upgrade(db, oldVersion) {
       // Customers store
       if (!db.objectStoreNames.contains("customers")) {
@@ -127,6 +167,26 @@ export async function getDB(): Promise<IDBPDatabase> {
         branchStore.createIndex("by-synced", "synced");
       }
 
+      // Maintenance requests store
+      if (!db.objectStoreNames.contains("maintenance_requests")) {
+        const maintenanceStore = db.createObjectStore("maintenance_requests", {
+          keyPath: "id",
+        });
+        maintenanceStore.createIndex("by-branch", "branch_id");
+        maintenanceStore.createIndex("by-synced", "synced");
+        maintenanceStore.createIndex("by-status", "status");
+      }
+
+      // Expenses store
+      if (!db.objectStoreNames.contains("expenses")) {
+        const expensesStore = db.createObjectStore("expenses", {
+          keyPath: "id",
+        });
+        expensesStore.createIndex("by-branch", "branch_id");
+        expensesStore.createIndex("by-synced", "synced");
+        expensesStore.createIndex("by-date", "expense_date");
+      }
+
       // Sync queue store
       if (!db.objectStoreNames.contains("sync_queue")) {
         db.createObjectStore("sync_queue", { keyPath: "id" });
@@ -144,6 +204,8 @@ export async function saveToLocal(
     | "rentals"
     | "rental_items"
     | "branches"
+    | "maintenance_requests"
+    | "expenses"
     | "sync_queue",
   data: any
 ): Promise<void> {
@@ -158,6 +220,8 @@ export async function getFromLocal(
     | "rentals"
     | "rental_items"
     | "branches"
+    | "maintenance_requests"
+    | "expenses"
     | "sync_queue",
   id: string
 ): Promise<any> {
@@ -172,6 +236,8 @@ export async function getAllFromLocal(
     | "rentals"
     | "rental_items"
     | "branches"
+    | "maintenance_requests"
+    | "expenses"
     | "sync_queue"
 ): Promise<any[]> {
   const db = await getDB();
@@ -185,6 +251,8 @@ export async function deleteFromLocal(
     | "rentals"
     | "rental_items"
     | "branches"
+    | "maintenance_requests"
+    | "expenses"
     | "sync_queue",
   id: string
 ): Promise<void> {
@@ -199,6 +267,8 @@ export async function clearStore(
     | "rentals"
     | "rental_items"
     | "branches"
+    | "maintenance_requests"
+    | "expenses"
     | "sync_queue"
 ): Promise<void> {
   const db = await getDB();
@@ -226,6 +296,8 @@ export async function bulkSaveToLocal(
     | "rentals"
     | "rental_items"
     | "branches"
+    | "maintenance_requests"
+    | "expenses"
     | "sync_queue",
   items: any[]
 ): Promise<void> {

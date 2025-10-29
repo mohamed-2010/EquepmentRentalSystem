@@ -48,11 +48,15 @@ export async function syncWithBackend(): Promise<{
       equipment: 1,
       rentals: 2,
       rental_items: 3,
+      maintenance_requests: 2,
+      expenses: 1,
     };
 
     const tableDeleteOrder: Record<QueueItem["table"], number> = {
       rental_items: 0,
       rentals: 1,
+      maintenance_requests: 1,
+      expenses: 1,
       customers: 2,
       equipment: 2,
       branches: 3,
@@ -126,28 +130,31 @@ async function processQueueItem(item: QueueItem): Promise<void> {
 
     switch (operation) {
       case "insert": {
-        const { error } = await supabase.from(table).insert(cleanData);
+        const { error } = await (supabase as any).from(table).insert(cleanData);
         if (error) throw error;
         // تحديث البيانات المحلية بـ synced: true
-        await saveToLocal(table, { ...data, synced: true });
+        await saveToLocal(table as any, { ...data, synced: true });
         break;
       }
 
       case "update": {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from(table)
           .update(cleanData)
           .eq("id", data.id);
         if (error) throw error;
-        await saveToLocal(table, { ...data, synced: true });
+        await saveToLocal(table as any, { ...data, synced: true });
         break;
       }
 
       case "delete": {
-        const { error } = await supabase.from(table).delete().eq("id", data.id);
+        const { error } = await (supabase as any)
+          .from(table)
+          .delete()
+          .eq("id", data.id);
         if (error) throw error;
         // Verify deletion: if row still exists (or still visible), treat as failure to retry later
-        const verify = await supabase
+        const verify = await (supabase as any)
           .from(table)
           .select("id")
           .eq("id", data.id)

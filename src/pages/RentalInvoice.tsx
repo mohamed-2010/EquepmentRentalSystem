@@ -65,14 +65,17 @@ export default function RentalInvoice() {
     let subtotal = 0;
     const lines = items.map((it) => {
       const rate = it?.equipment?.daily_rate ?? 0;
+      const quantity = it?.quantity ?? 1;
       const days = it?.days_count ?? daysBetween(it.start_date, it.return_date);
-      const amount = it?.amount ?? rate * days;
+      // احسب المبلغ بضرب السعر × الأيام × الكمية (تجاهل it.amount لأنه قد يكون خاطئ)
+      const amount = rate * days * quantity;
       subtotal += Number(amount || 0);
       return {
         id: it.id,
         name: it?.equipment?.name,
         code: it?.equipment?.code,
         rate,
+        quantity,
         days,
         amount,
       };
@@ -180,6 +183,7 @@ export default function RentalInvoice() {
               <tr>
                 <th className="p-2 border">المعدة</th>
                 <th className="p-2 border">الكود</th>
+                <th className="p-2 border">الكمية</th>
                 <th className="p-2 border">السعر/يوم</th>
                 <th className="p-2 border">المدة (يوم)</th>
                 <th className="p-2 border">الإجمالي</th>
@@ -190,6 +194,7 @@ export default function RentalInvoice() {
                 <tr key={ln.id}>
                   <td className="p-2 border">{ln.name || "-"}</td>
                   <td className="p-2 border">{ln.code || "-"}</td>
+                  <td className="p-2 border">{ln.quantity}</td>
                   <td className="p-2 border">
                     {Number(ln.rate || 0).toFixed(2)}
                   </td>
@@ -202,7 +207,7 @@ export default function RentalInvoice() {
             </tbody>
             <tfoot>
               <tr>
-                <td className="p-2 border text-right" colSpan={4}>
+                <td className="p-2 border text-right" colSpan={5}>
                   المجموع
                 </td>
                 <td className="p-2 border font-semibold">
@@ -210,7 +215,7 @@ export default function RentalInvoice() {
                 </td>
               </tr>
               <tr>
-                <td className="p-2 border text-right" colSpan={4}>
+                <td className="p-2 border text-right" colSpan={5}>
                   الضريبة
                 </td>
                 <td className="p-2 border font-semibold">
@@ -218,7 +223,7 @@ export default function RentalInvoice() {
                 </td>
               </tr>
               <tr>
-                <td className="p-2 border text-right" colSpan={4}>
+                <td className="p-2 border text-right" colSpan={5}>
                   الإجمالي النهائي
                 </td>
                 <td className="p-2 border font-bold text-primary">
