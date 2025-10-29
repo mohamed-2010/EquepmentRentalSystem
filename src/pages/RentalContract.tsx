@@ -138,11 +138,11 @@ export default function RentalContract() {
             <div className="text-sm">
               <div>صيانة جميع المعدات</div>
               {branch?.phone && <div>جوال: {branch.phone}</div>}
-              {branch?.name && (
+              {/* {branch?.name && (
                 <div className="font-semibold text-primary mt-1">
                   الفرع: {branch.name}
                 </div>
-              )}
+              )} */}
             </div>
           </div>
 
@@ -153,7 +153,9 @@ export default function RentalContract() {
           </div>
 
           <div className="text-left">
-            <div className="font-bold text-lg mb-2">مؤسسة عتبة المحلات</div>
+            <div className="font-bold text-lg mb-2">
+              مؤسسة {branch?.name || "عتبة المحلات"}
+            </div>
             <div className="text-sm">
               <div>لتأجير وبيع وصيانة المعدات</div>
               <div>الرس - صناعة الحراء</div>

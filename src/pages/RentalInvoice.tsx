@@ -125,13 +125,13 @@ export default function RentalInvoice() {
           </div>
           <div className="text-right">
             <div className="font-semibold text-lg">
-              {branch?.company_name || branch?.name || "الفرع"}
+              {branch?.company_name || `مؤسسة ${branch?.name || "الفرع"}`}
             </div>
-            {branch?.name && branch?.company_name && (
+            {/* {branch?.name && branch?.company_name && (
               <div className="text-sm font-medium text-primary">
                 الفرع: {branch.name}
               </div>
-            )}
+            )} */}
             {branch?.tax_number && (
               <div className="text-sm">الرقم الضريبي: {branch.tax_number}</div>
             )}
