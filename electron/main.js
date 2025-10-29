@@ -23,7 +23,7 @@ function createWindow() {
     // On Windows the executable icon comes from electron-builder config (win.icon)
     // The BrowserWindow icon is primarily used on Linux; keep a reasonable default in dev
     icon: path.join(__dirname, "../public/favicon.ico"),
-    title: "Branch Gear Pro",
+    title: "إدارة إيجارات المعدات",
     backgroundColor: "#ffffff",
     show: false, // Don't show until ready
   });

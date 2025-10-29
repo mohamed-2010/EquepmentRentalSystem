@@ -4,7 +4,7 @@
   "version": "1.0.9",
   "main": "electron/main.js",
   "author": "Branch Gear Pro Team",
-  "description": "نظام إدارة الفروع والمعدات",
+  "description": "إدارة إيجارات المعدات",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "com.branchgear.pro",
-    "productName": "Branch Gear Pro",
+    "productName": "إدارة إيجارات المعدات",
     "directories": {
       "output": "release"
     },
