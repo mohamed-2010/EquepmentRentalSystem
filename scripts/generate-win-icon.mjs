@@ -17,7 +17,7 @@ async function generate() {
   const projectRoot = path.join(__dirname, "..");
   const publicDir = path.join(projectRoot, "public");
   const tmpDir = path.join(projectRoot, ".tmp-icons");
-  const srcSvg = path.join(publicDir, "placeholder.svg");
+  const srcSvg = path.join(publicDir, "placeholder.png");
   const outIco = path.join(publicDir, "app.ico");
 
   // If already exists and looks fine, skip
