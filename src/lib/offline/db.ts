@@ -5,6 +5,8 @@ export interface CustomerData {
   full_name: string;
   phone: string;
   id_number?: string;
+  id_source?: string;
+  address?: string;
   notes?: string;
   branch_id: string;
   created_at: string;

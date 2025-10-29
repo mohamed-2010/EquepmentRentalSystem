@@ -138,6 +138,11 @@ export default function RentalContract() {
             <div className="text-sm">
               <div>صيانة جميع المعدات</div>
               {branch?.phone && <div>جوال: {branch.phone}</div>}
+              {branch?.name && (
+                <div className="font-semibold text-primary mt-1">
+                  الفرع: {branch.name}
+                </div>
+              )}
             </div>
           </div>
 

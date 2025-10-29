@@ -49,6 +49,8 @@ export default function Customers() {
     full_name: "",
     phone: "",
     id_number: "",
+    id_source: "",
+    address: "",
     notes: "",
   });
   const { toast } = useToast();
@@ -158,7 +160,14 @@ export default function Customers() {
             const chosenId = localBranches[0].id as string;
             await addCustomer({ ...formData, branch_id: chosenId });
             setIsDialogOpen(false);
-            setFormData({ full_name: "", phone: "", id_number: "", notes: "" });
+            setFormData({
+              full_name: "",
+              phone: "",
+              id_number: "",
+              id_source: "",
+              address: "",
+              notes: "",
+            });
             toast({ title: "تم الحفظ", description: "تم إضافة العميل بنجاح" });
             await updatePendingCount();
             return;
@@ -175,7 +184,14 @@ export default function Customers() {
             const chosenId = branches[0].id as string;
             await addCustomer({ ...formData, branch_id: chosenId });
             setIsDialogOpen(false);
-            setFormData({ full_name: "", phone: "", id_number: "", notes: "" });
+            setFormData({
+              full_name: "",
+              phone: "",
+              id_number: "",
+              id_source: "",
+              address: "",
+              notes: "",
+            });
             toast({ title: "تم الحفظ", description: "تم إضافة العميل بنجاح" });
             await updatePendingCount();
             return;
@@ -199,7 +215,14 @@ export default function Customers() {
       });
 
       setIsDialogOpen(false);
-      setFormData({ full_name: "", phone: "", id_number: "", notes: "" });
+      setFormData({
+        full_name: "",
+        phone: "",
+        id_number: "",
+        id_source: "",
+        address: "",
+        notes: "",
+      });
 
       toast({
         title: "تم الحفظ",
@@ -263,14 +286,36 @@ export default function Customers() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="id_number">رقم البطاقة</Label>
+                  <Label htmlFor="id_number">رقم الهوية</Label>
                   <Input
                     id="id_number"
                     value={formData.id_number}
                     onChange={(e) =>
                       setFormData({ ...formData, id_number: e.target.value })
                     }
-                    placeholder="أدخل رقم البطاقة"
+                    placeholder="أدخل رقم الهوية"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="id_source">مصدر الهوية</Label>
+                  <Input
+                    id="id_source"
+                    value={formData.id_source}
+                    onChange={(e) =>
+                      setFormData({ ...formData, id_source: e.target.value })
+                    }
+                    placeholder="مثال: الرياض، جدة، إلخ"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">العنوان</Label>
+                  <Input
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
+                    placeholder="أدخل عنوان العميل"
                   />
                 </div>
                 <div className="space-y-2">
@@ -307,7 +352,7 @@ export default function Customers() {
             <div className="relative">
               <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="البحث باسم العميل أو رقم الهاتف أو رقم البطاقة..."
+                placeholder="البحث باسم العميل أو رقم الهاتف أو رقم الهويه..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pr-10"
@@ -420,6 +465,17 @@ export default function Customers() {
                         <div className="flex items-center gap-2 text-sm">
                           <IdCard className="h-4 w-4 text-muted-foreground" />
                           <span>{customer.id_number}</span>
+                          {customer.id_source && (
+                            <span className="text-muted-foreground">
+                              ({customer.id_source})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {customer.address && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">📍</span>
+                          <span>{customer.address}</span>
                         </div>
                       )}
                       {!customer.synced && (
@@ -453,6 +509,8 @@ function EditCustomerForm({
     full_name: string;
     phone: string;
     id_number?: string;
+    id_source?: string;
+    address?: string;
     notes?: string;
   }) => Promise<void>;
 }) {
@@ -460,6 +518,8 @@ function EditCustomerForm({
     full_name: customer.full_name || "",
     phone: customer.phone || "",
     id_number: customer.id_number || "",
+    id_source: customer.id_source || "",
+    address: customer.address || "",
     notes: customer.notes || "",
   });
   const [saving, setSaving] = useState(false);
@@ -495,11 +555,28 @@ function EditCustomerForm({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="eid_number">رقم البطاقة</Label>
+        <Label htmlFor="eid_number">رقم الهوية</Label>
         <Input
           id="eid_number"
           value={values.id_number}
           onChange={(e) => setValues({ ...values, id_number: e.target.value })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="eid_source">مصدر الهوية</Label>
+        <Input
+          id="eid_source"
+          value={values.id_source}
+          onChange={(e) => setValues({ ...values, id_source: e.target.value })}
+          placeholder="مثال: الرياض، جدة، إلخ"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="eaddress">العنوان</Label>
+        <Input
+          id="eaddress"
+          value={values.address}
+          onChange={(e) => setValues({ ...values, address: e.target.value })}
         />
       </div>
       <div className="space-y-2">

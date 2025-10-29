@@ -57,6 +57,8 @@ export function CustomerAutocomplete({
     full_name: "",
     phone: "",
     id_number: "",
+    id_source: "",
+    address: "",
     notes: "",
   });
   const { toast } = useToast();
@@ -211,7 +213,14 @@ export function CustomerAutocomplete({
       }
 
       setIsAddDialogOpen(false);
-      setNewCustomer({ full_name: "", phone: "", id_number: "", notes: "" });
+      setNewCustomer({
+        full_name: "",
+        phone: "",
+        id_number: "",
+        id_source: "",
+        address: "",
+        notes: "",
+      });
       onCustomerAdded?.();
     } catch (error: any) {
       toast({
@@ -350,6 +359,26 @@ export function CustomerAutocomplete({
                   setNewCustomer({ ...newCustomer, id_number: e.target.value })
                 }
                 placeholder="1xxxxxxxxx"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>مصدر الهوية</Label>
+              <Input
+                value={newCustomer.id_source}
+                onChange={(e) =>
+                  setNewCustomer({ ...newCustomer, id_source: e.target.value })
+                }
+                placeholder="مثال: الرياض، جدة"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>العنوان</Label>
+              <Input
+                value={newCustomer.address}
+                onChange={(e) =>
+                  setNewCustomer({ ...newCustomer, address: e.target.value })
+                }
+                placeholder="عنوان العميل"
               />
             </div>
             <div className="space-y-2">

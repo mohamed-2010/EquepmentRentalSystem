@@ -66,6 +66,7 @@ interface RentalEquipment {
 export default function Rentals() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
   const [rentalType, setRentalType] = useState<"daily" | "monthly">("daily");
   const [isFixedDuration, setIsFixedDuration] = useState(true);
   const [startDate, setStartDate] = useState(
@@ -140,6 +141,20 @@ export default function Rentals() {
     refetchOnWindowFocus: isOnline,
   });
 
+  // تحميل قائمة الفروع (للأدمن فقط)
+  const { data: branches } = useQuery({
+    queryKey: ["branches", userRole?.role],
+    queryFn: async () => {
+      if (userRole?.role !== "admin") return [];
+      const { data } = await supabase
+        .from("branches")
+        .select("id, name")
+        .order("name");
+      return data || [];
+    },
+    enabled: userRole?.role === "admin" && isOnline,
+  });
+
   const handleCreateRental = async () => {
     // منع الضغط المتكرر
     if (isSubmitting) {
@@ -178,10 +193,21 @@ export default function Rentals() {
       if (!user) throw new Error("غير مسجل الدخول");
 
       console.log("[Rentals] Loaded user role:", userRole);
-      // Get branch_id from userRole or localStorage (for offline)
-      const branch_id =
-        userRole?.branch_id || localStorage.getItem("user_branch_id");
-      if (!branch_id) throw new Error("لم يتم تعيين فرع للمستخدم");
+
+      // تحديد الفرع:
+      // - إذا كان أدمن واختار فرع، استخدم المحدد
+      // - إذا لم يكن أدمن، استخدم فرع المستخدم
+      let branch_id;
+      if (userRole?.role === "admin") {
+        if (!selectedBranch) {
+          throw new Error("يرجى اختيار الفرع");
+        }
+        branch_id = selectedBranch;
+      } else {
+        branch_id =
+          userRole?.branch_id || localStorage.getItem("user_branch_id");
+        if (!branch_id) throw new Error("لم يتم تعيين فرع للمستخدم");
+      }
 
       // التحقق من تاريخ النهاية إذا كان الإيجار بمدة محددة
       if (isFixedDuration && !expectedEndDate) {
@@ -348,6 +374,28 @@ export default function Rentals() {
                 <DialogTitle>عقد إيجار جديد</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                {/* اختيار الفرع - للأدمن فقط */}
+                {userRole?.role === "admin" && (
+                  <div className="space-y-2">
+                    <Label>الفرع *</Label>
+                    <Select
+                      value={selectedBranch}
+                      onValueChange={setSelectedBranch}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر الفرع" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches?.map((branch: any) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label>العميل *</Label>
                   <CustomerAutocomplete
@@ -504,6 +552,7 @@ export default function Rentals() {
                     disabled={
                       isSubmitting ||
                       !selectedCustomer ||
+                      (userRole?.role === "admin" && !selectedBranch) ||
                       rentalEquipment.every((e) => !e.equipmentId) ||
                       (isFixedDuration && !expectedEndDate)
                     }
