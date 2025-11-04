@@ -7,6 +7,8 @@ import {
   LogOut,
   Wrench,
   DollarSign,
+  Calendar,
+  CalendarDays,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
@@ -28,7 +30,8 @@ const menuItems = [
   { title: "لوحة التحكم", url: "/dashboard", icon: LayoutDashboard },
   { title: "المعدات", url: "/equipment", icon: Package },
   { title: "العملاء", url: "/customers", icon: Users },
-  { title: "الإيجارات", url: "/rentals", icon: FileText },
+  { title: "الإيجارات اليومية", url: "/rentals/daily", icon: Calendar },
+  { title: "الإيجارات الشهرية", url: "/rentals/monthly", icon: CalendarDays },
   { title: "الصيانة", url: "/maintenance", icon: Wrench },
   { title: "المصروفات", url: "/expenses", icon: DollarSign },
   { title: "الفروع", url: "/branches", icon: Building2 },

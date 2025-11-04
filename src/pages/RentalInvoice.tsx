@@ -30,14 +30,36 @@ export default function RentalInvoice() {
   useEffect(() => {
     (async () => {
       if (!id) return;
+      console.log("[RentalInvoice] Loading rental:", id);
       const r = await getFromLocal("rentals", id);
+      console.log("[RentalInvoice] Rental data:", r);
       setRental(r || null);
 
       const allItems = await getAllFromLocal("rental_items");
       const filtered = (allItems || []).filter(
         (ri: AnyRecord) => ri.rental_id === id
       );
-      setItems(filtered);
+      console.log("[RentalInvoice] Rental items:", filtered);
+
+      // Enrich items with equipment data
+      const allEquipment = await getAllFromLocal("equipment");
+      const enrichedItems = filtered.map((item: AnyRecord) => {
+        const equip = (allEquipment || []).find(
+          (e: any) => e.id === item.equipment_id
+        );
+        return {
+          ...item,
+          equipment: equip
+            ? {
+                name: equip.name,
+                code: equip.code,
+                daily_rate: equip.daily_rate,
+              }
+            : null,
+        };
+      });
+      console.log("[RentalInvoice] Enriched items:", enrichedItems);
+      setItems(enrichedItems);
 
       // branch
       if (r?.branches) {

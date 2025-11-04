@@ -17,12 +17,15 @@ import Dashboard from "./pages/Dashboard";
 import Equipment from "./pages/Equipment";
 import Customers from "./pages/Customers";
 import Rentals from "./pages/Rentals";
+import DailyRentals from "./pages/DailyRentals";
+import MonthlyRentals from "./pages/MonthlyRentals";
 import Branches from "./pages/Branches";
 import Maintenance from "./pages/Maintenance";
 import Expenses from "./pages/Expenses";
 import NotFound from "./pages/NotFound";
 import RentalInvoice from "./pages/RentalInvoice";
 import RentalContract from "./pages/RentalContract";
+import ComprehensiveReport from "./pages/ComprehensiveReport";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,13 +44,8 @@ const App = () => (
         <Toaster />
         <Sonner />
         {(() => {
-          const isFile =
-            typeof window !== "undefined" &&
-            window.location.protocol === "file:";
-          const isElectron =
-            typeof navigator !== "undefined" &&
-            navigator.userAgent.includes("Electron");
-          const Router = isFile || isElectron ? HashRouter : BrowserRouter;
+          // استخدم HashRouter دائماً لتفادي مشاكل 404 عند التحديث على الاستضافات الثابتة
+          const Router = HashRouter;
           return (
             <Router>
               <Routes>
@@ -97,6 +95,22 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/rentals/daily"
+                  element={
+                    <ProtectedRoute>
+                      <DailyRentals />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/rentals/monthly"
+                  element={
+                    <ProtectedRoute>
+                      <MonthlyRentals />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/maintenance"
                   element={
                     <ProtectedRoute>
@@ -125,6 +139,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <RentalContract />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/report"
+                  element={
+                    <ProtectedRoute>
+                      <ComprehensiveReport />
                     </ProtectedRoute>
                   }
                 />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,9 @@ import {
   Wrench,
   Receipt,
   PiggyBank,
+  Eye,
+  EyeOff,
+  FileBarChart,
 } from "lucide-react";
 import { getAllFromLocal } from "@/lib/offline/db";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -46,6 +50,7 @@ interface FinancialStats {
 }
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({
     totalEquipment: 0,
     totalCustomers: 0,
@@ -64,7 +69,16 @@ const Dashboard = () => {
   );
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [showNumbers, setShowNumbers] = useState(true);
   const isOnline = useOnlineStatus();
+
+  const handleGenerateReport = () => {
+    const params = new URLSearchParams({
+      start: format(startDate, "yyyy-MM-dd"),
+      end: format(endDate, "yyyy-MM-dd"),
+    });
+    navigate(`/report?${params.toString()}`);
+  };
 
   const handleDateRangeChange = (range: "month" | "year" | "custom") => {
     setDateRange(range);
@@ -303,6 +317,27 @@ const Dashboard = () => {
 
           <div className="flex gap-2">
             <Button
+              variant="outline"
+              onClick={handleGenerateReport}
+              className="gap-2"
+              title="طباعة تقرير شامل"
+            >
+              <FileBarChart className="h-4 w-4" />
+              <span className="hidden md:inline">طباعة تقرير</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowNumbers(!showNumbers)}
+              title={showNumbers ? "إخفاء الأرقام" : "إظهار الأرقام"}
+            >
+              {showNumbers ? (
+                <Eye className="h-4 w-4" />
+              ) : (
+                <EyeOff className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
               variant={dateRange === "month" ? "default" : "outline"}
               onClick={() => handleDateRangeChange("month")}
             >
@@ -380,7 +415,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className={`text-3xl font-bold ${stat.color}`}>
-                  {loading ? "..." : stat.value}
+                  {loading ? "..." : showNumbers ? stat.value : "••••"}
                 </div>
               </CardContent>
             </Card>
@@ -414,7 +449,9 @@ const Dashboard = () => {
                   <div className={`text-2xl font-bold ${stat.color}`}>
                     {loading
                       ? "..."
-                      : `${stat.value.toLocaleString("ar-EG")} ريال`}
+                      : showNumbers
+                      ? `${stat.value.toLocaleString("ar-EG")} ريال`
+                      : "•••• ريال"}
                   </div>
                 </CardContent>
               </Card>
@@ -435,9 +472,11 @@ const Dashboard = () => {
                   <span className="font-semibold text-blue-600">
                     {loading
                       ? "..."
-                      : `${financialStats.rentalRevenue.toLocaleString(
+                      : showNumbers
+                      ? `${financialStats.rentalRevenue.toLocaleString(
                           "ar-EG"
-                        )} ريال`}
+                        )} ريال`
+                      : "•••• ريال"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
@@ -446,9 +485,11 @@ const Dashboard = () => {
                     +{" "}
                     {loading
                       ? "..."
-                      : `${financialStats.maintenanceRevenue.toLocaleString(
+                      : showNumbers
+                      ? `${financialStats.maintenanceRevenue.toLocaleString(
                           "ar-EG"
-                        )} ريال`}
+                        )} ريال`
+                      : "•••• ريال"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
@@ -458,10 +499,12 @@ const Dashboard = () => {
                   <span className="font-semibold text-green-600">
                     {loading
                       ? "..."
-                      : `${(
+                      : showNumbers
+                      ? `${(
                           financialStats.rentalRevenue +
                           financialStats.maintenanceRevenue
-                        ).toLocaleString("ar-EG")} ريال`}
+                        ).toLocaleString("ar-EG")} ريال`
+                      : "•••• ريال"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
@@ -470,9 +513,11 @@ const Dashboard = () => {
                     -{" "}
                     {loading
                       ? "..."
-                      : `${financialStats.totalExpenses.toLocaleString(
+                      : showNumbers
+                      ? `${financialStats.totalExpenses.toLocaleString(
                           "ar-EG"
-                        )} ريال`}
+                        )} ريال`
+                      : "•••• ريال"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t-2">
@@ -486,9 +531,11 @@ const Dashboard = () => {
                   >
                     {loading
                       ? "..."
-                      : `${financialStats.netProfit.toLocaleString(
+                      : showNumbers
+                      ? `${financialStats.netProfit.toLocaleString(
                           "ar-EG"
-                        )} ريال`}
+                        )} ريال`
+                      : "•••• ريال"}
                   </span>
                 </div>
               </div>

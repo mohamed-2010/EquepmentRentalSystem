@@ -56,9 +56,9 @@ export function EquipmentAutocomplete({
           .select("id, name, code, daily_rate, status")
           .order("name");
 
-        if (availableOnly) {
-          query = query.eq("status", "available");
-        }
+        // if (availableOnly) {
+        //   query = query.eq("status", "available");
+        // }
 
         const { data } = await query;
         if (data) setEquipment(data);
@@ -68,11 +68,9 @@ export function EquipmentAutocomplete({
         const data = await getAllFromLocal("equipment");
         let filteredData = data as Equipment[];
 
-        if (availableOnly) {
-          filteredData = filteredData.filter(
-            (e: Equipment) => e.status === "available"
-          );
-        }
+        // if (availableOnly) {
+        //   filteredData = filteredData;
+        // }
 
         setEquipment(filteredData);
       }

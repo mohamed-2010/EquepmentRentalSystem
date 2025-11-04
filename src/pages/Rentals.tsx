@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -64,6 +65,7 @@ interface RentalEquipment {
 }
 
 export default function Rentals() {
+  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
@@ -259,7 +261,7 @@ export default function Rentals() {
       // فتح صفحة العقد للطباعة بعد التأكد من حفظ البيانات
       if (newRental && newRental.id) {
         setTimeout(() => {
-          window.location.hash = `#/rentals/${newRental.id}/contract`;
+          navigate(`/rentals/${newRental.id}/contract`);
         }, 1000);
       }
     } catch (error: any) {
@@ -301,9 +303,8 @@ export default function Rentals() {
     return rentalItems?.filter((item) => item.rental_id === rentalId) || [];
   };
 
-  const activeRentals = rentals?.filter((r) => r.status === "active") || [];
-  const completedRentals =
-    rentals?.filter((r) => r.status === "completed") || [];
+  const activeRentals = rentals?.filter((r) => 1) || [];
+  const completedRentals = rentals?.filter((r) => 1) || [];
   const dailyRentals = activeRentals.filter((r) => r.rental_type === "daily");
   const monthlyRentals = activeRentals.filter(
     (r) => r.rental_type === "monthly"
@@ -613,7 +614,7 @@ export default function Rentals() {
                             variant="secondary"
                             size="sm"
                             onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                              navigate(`/rentals/${rental.id}/contract`)
                             }
                             title="طباعة العقد"
                             className="gap-2"
@@ -625,7 +626,7 @@ export default function Rentals() {
                             variant="default"
                             size="sm"
                             onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                              navigate(`/rentals/${rental.id}/invoice`)
                             }
                             title="طباعة الفاتورة"
                             className="gap-2"
@@ -815,7 +816,7 @@ export default function Rentals() {
                             variant="secondary"
                             size="sm"
                             onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                              navigate(`/rentals/${rental.id}/contract`)
                             }
                             title="طباعة العقد"
                             className="gap-2"
@@ -827,7 +828,7 @@ export default function Rentals() {
                             variant="default"
                             size="sm"
                             onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                              navigate(`/rentals/${rental.id}/invoice`)
                             }
                             title="طباعة الفاتورة"
                             className="gap-2"
@@ -1018,9 +1019,7 @@ export default function Rentals() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/contract`)
-                            }
+                            onClick={() => navigate(`/rentals/${rental.id}/contract`)}
                             title="طباعة العقد"
                             className="gap-2"
                           >
@@ -1030,9 +1029,7 @@ export default function Rentals() {
                           <Button
                             variant="default"
                             size="sm"
-                            onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
-                            }
+                            onClick={() => navigate(`/rentals/${rental.id}/invoice`)}
                             title="طباعة الفاتورة"
                             className="gap-2"
                           >
@@ -1221,7 +1218,7 @@ export default function Rentals() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/contract`)
+                              navigate(`/rentals/${rental.id}/contract`)
                             }
                             title="عرض العقد"
                             className="gap-2"
@@ -1233,7 +1230,7 @@ export default function Rentals() {
                             variant="default"
                             size="sm"
                             onClick={() =>
-                              (window.location.hash = `#/rentals/${rental.id}/invoice`)
+                              navigate(`/rentals/${rental.id}/invoice`)
                             }
                             title="طباعة الفاتورة"
                             className="gap-2"

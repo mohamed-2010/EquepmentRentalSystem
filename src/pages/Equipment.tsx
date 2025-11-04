@@ -430,7 +430,7 @@ const Equipment = () => {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          {getStatusBadge(item.status)}
+                          {/* {getStatusBadge(item.status)} */}
                           <Button
                             variant="ghost"
                             size="icon"

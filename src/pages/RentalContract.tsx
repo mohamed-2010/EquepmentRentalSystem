@@ -23,13 +23,16 @@ export default function RentalContract() {
   useEffect(() => {
     (async () => {
       if (!id) return;
+      console.log("[RentalContract] Loading rental:", id);
       const r = await getFromLocal("rentals", id);
+      console.log("[RentalContract] Rental data:", r);
       setRental(r || null);
 
       const allItems = await getAllFromLocal("rental_items");
       const filtered = (allItems || []).filter(
         (ri: AnyRecord) => ri.rental_id === id
       );
+      console.log("[RentalContract] Rental items:", filtered);
 
       // Enrich items with equipment data
       const allEquipment = await getAllFromLocal("equipment");
@@ -100,21 +103,30 @@ export default function RentalContract() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
+          html, body { width: 210mm; height: 297mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          @page { margin: 1cm; }
+          @page { size: A4 portrait; margin: 8mm; }
+          body { zoom: 0.92; }
+          table, tr, td, th { page-break-inside: avoid; }
+          .avoid-break { page-break-inside: avoid; }
         }
         .contract-page {
           background: white;
           max-width: 21cm;
           margin: 0 auto;
-          padding: 2cm;
+          padding: 1cm;
           min-height: 29.7cm;
+          font-size: 12px;
           box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
+        .contract-page h3, .contract-page .section-title { font-size: 14px; }
         @media print {
           .contract-page {
             box-shadow: none;
             margin: 0;
+            width: 100%;
+            height: calc(297mm - 16mm);
+            min-height: auto;
           }
         }
       `}</style>
@@ -158,7 +170,7 @@ export default function RentalContract() {
             </div>
             <div className="text-sm">
               <div>لتأجير وبيع وصيانة المعدات</div>
-              <div>الرس - صناعة الحراء</div>
+              {branch?.address && <div>{branch.address}</div>}
             </div>
           </div>
         </div>
@@ -198,14 +210,16 @@ export default function RentalContract() {
                 رقم الهوية / الإقامة
               </div>
               <div className="border border-gray-800 p-2">
-                {(customer as any)?.national_id || "-"}
+                {(customer as any)?.id_number || "-"}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
                 مصدر الهوية
               </div>
-              <div className="border border-gray-800 p-2">-</div>
+              <div className="border border-gray-800 p-2">
+                {(customer as any)?.id_source || "-"}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
@@ -232,7 +246,7 @@ export default function RentalContract() {
             بيانات التأجير
           </div>
 
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full border-collapse text-sm avoid-break">
             <thead>
               <tr className="bg-gray-100">
                 <th className="border border-gray-800 p-2">كود المعدة</th>
@@ -246,7 +260,7 @@ export default function RentalContract() {
               {items.map((item, idx) => (
                 <tr key={item.id}>
                   <td className="border border-gray-800 p-2 text-center">
-                    {idx + 1}
+                    {item.equipment?.code || "-"}
                   </td>
                   <td className="border border-gray-800 p-2">
                     {item.equipment?.name || "معدة غير معروفة"}
@@ -260,18 +274,6 @@ export default function RentalContract() {
                   <td className="border border-gray-800 p-2 text-center">
                     {(item.equipment?.daily_rate || 0) * (item.quantity || 1)}
                   </td>
-                </tr>
-              ))}
-              {/* Empty rows */}
-              {[...Array(Math.max(0, 3 - items.length))].map((_, i) => (
-                <tr key={`empty-${i}`}>
-                  <td className="border border-gray-800 p-2 text-center">
-                    {items.length + i + 1}
-                  </td>
-                  <td className="border border-gray-800 p-2">&nbsp;</td>
-                  <td className="border border-gray-800 p-2">&nbsp;</td>
-                  <td className="border border-gray-800 p-2">&nbsp;</td>
-                  <td className="border border-gray-800 p-2">&nbsp;</td>
                 </tr>
               ))}
             </tbody>
@@ -297,7 +299,7 @@ export default function RentalContract() {
                   colSpan={4}
                   className="border border-gray-800 p-2 text-center font-bold bg-gray-100"
                 >
-                  الضريبون
+                  الضريبة
                 </td>
                 <td className="border border-gray-800 p-2 text-center font-bold">
                   0
@@ -319,7 +321,7 @@ export default function RentalContract() {
                   colSpan={5}
                   className="border border-gray-800 p-2 text-center font-bold bg-gray-100"
                 >
-                  إجمالي تسديد الفاتورة
+                  إجمالي سداد الفاتورة
                 </td>
               </tr>
             </tfoot>
@@ -327,46 +329,50 @@ export default function RentalContract() {
         </div>
 
         {/* Terms and Conditions */}
-        <div className="text-xs leading-relaxed space-y-2 mb-8 border-t pt-4">
-          <p className="font-semibold text-center mb-3">شروط وملاحظات</p>
-          <p>• مدة صلاحية تأجير المعدة 24 ساعة من الاستلام.</p>
+        <div className="text-xs leading-relaxed space-y-1.5 mb-6 border-t pt-3 avoid-break">
+          <p className="font-semibold text-center mb-2">الشروط والأحكام</p>
+          <p>• مدة الإيجار اليومية 24 ساعة من وقت الاستلام.</p>
           <p>
-            • المحترم يلتزم المستأجر بإلإقاء الإيجار اليومي للعمل عن كل 24 ساعة.
+            • يستحق الإيجار اليومي عن كل 24 ساعة أو جزء منها ما لم يتم الإرجاع.
           </p>
           <p>
-            • ضمان المستأجر إرجاع المعدة سليمة؛ وبدون أي طلل تبيع بيخصم من
-            الضمان المتاخذ مبلغ غير محرد.
+            • يلتزم المستأجر بإعادة المعدة سليمة ونظيفة، ويتحمل تكلفة أي تلف أو
+            فقدان.
           </p>
           <p>
-            • يلتزم المستأجر بفحص المعدة عن أي خلل أو تلف وقبل أي دي حالة تلك
-            المعدة يتحمل.
+            • يحق للمؤسسة خصم قيمة التلف أو الإصلاح من التأمين/الضمان حتى تسوية
+            المستحقات.
           </p>
           <p>
-            • مسؤولية عن أي ضمر في الأعواب والمستلمات نتيجة أي نسبب في المعدة.
+            • على المستأجر فحص المعدة عند الاستلام وإبلاغ المؤسسة فوراً بأي
+            ملاحظة.
           </p>
           <p>
-            • المؤسسة تحق الاحتفاظ بنسة التشبيت في حالة تلك المعدة لحين إصلاحها
-            وإصلاحية المستحقات.
+            • يتحمل المستأجر أي أضرار ناتجة عن سوء الاستخدام أو التشغيل غير
+            الصحيح.
           </p>
           <p>
-            • مدلة 30 ايام للمؤسسة للحل في المطالبة بالتسديد ما مضى وعند عدم
-            الالتزام يتم اتخاذ الإجراءات.
+            • لا يجوز نقل المعدة أو تأجيرها من الباطن إلا بموافقة خطية من
+            المؤسسة.
           </p>
           <p>
-            • يجوز للمستأجر بعد خروجها من المحل وما لم تكن غير مطابقة للعمل.
+            • تحتفظ المؤسسة بحقها في حجز نسبة من التأمين حتى اكتمال الإصلاحات
+            وسداد جميع المستحقات.
           </p>
-          <p>• نسوع الحق لنا بتاتيت اشعار المعدات المتكونة اعلاه بحالة جهزة.</p>
           <p>
-            • بالملاحق بالتهريفة الصحيحة لإستعمان الماده بها، والتي تمحول أي في
-            أي تلك يحدث للمعدة.
+            • في حال التأخر عن السداد يحق للمؤسسة المطالبة قانونياً بعد إشعار
+            المستأجر.
           </p>
-          <p>• المرفقة التالاوية يتحمل المستأجر تكلفت أجور مرابلة فاتورة.</p>
+          <p>
+            • الأسعار لا تشمل الوقود أو المُشغّل أو النقل أو الرسوم الحكومية ما
+            لم يُذكر خلاف ذلك.
+          </p>
         </div>
 
         {/* Signatures */}
-        <div className="grid grid-cols-2 gap-8 pt-6 border-t-2 border-gray-800">
+        <div className="grid grid-cols-2 gap-6 pt-4 border-t-2 border-gray-800 avoid-break">
           <div className="text-center">
-            <div className="mb-16 text-sm">........................</div>
+            <div className="mb-12 text-sm">........................</div>
             <div className="font-bold border-t-2 border-gray-800 pt-2">
               الاسم
             </div>
@@ -375,7 +381,7 @@ export default function RentalContract() {
             </div>
           </div>
           <div className="text-center">
-            <div className="mb-16 text-sm">........................</div>
+            <div className="mb-12 text-sm">........................</div>
             <div className="font-bold border-t-2 border-gray-800 pt-2">
               الاسم
             </div>
