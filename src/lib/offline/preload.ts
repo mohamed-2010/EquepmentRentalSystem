@@ -77,7 +77,7 @@ export async function preloadAllData() {
         `
         *,
         customers(full_name, phone),
-        branches(name)
+        branches(name, address, phone)
       `
       )
       .eq("branch_id", branch_id);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   getAllFromLocal,
   getFromLocal,
@@ -14,6 +14,7 @@ import { ar } from "date-fns/locale";
 type AnyRecord = Record<string, any>;
 
 export default function RentalContract() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [rental, setRental] = useState<AnyRecord | null>(null);
   const [items, setItems] = useState<AnyRecord[]>([]);
@@ -133,7 +134,12 @@ export default function RentalContract() {
 
       <div className="no-print mb-4 max-w-4xl mx-auto flex justify-between items-center">
         <Link to="/rentals" className="no-underline">
-          <Button variant="outline" className="gap-2">
+          <Button
+            type="button"
+            onClick={() => navigate(-1)}
+            variant="outline"
+            className="gap-2"
+          >
             <ArrowRight className="h-4 w-4" /> عودة
           </Button>
         </Link>
@@ -146,15 +152,20 @@ export default function RentalContract() {
         {/* Header */}
         <div className="grid grid-cols-3 gap-4 mb-8 pb-4 border-b-2 border-gray-300">
           <div className="text-right">
-            <h3 className="font-bold text-lg mb-2">إيجار معدات</h3>
-            <div className="text-sm">
-              <div>صيانة جميع المعدات</div>
-              {branch?.phone && <div>جوال: {branch.phone}</div>}
+            <h3 className="font-bold text-lg mb-2">
+              {branch?.company_name ||
+                `مؤسسة ${branch?.name || "عتبة المحلات"}`}
+            </h3>
+            <div className="text-sm mb-2">
+              <div>لتأجير المعدات و صيانتها</div>
               {/* {branch?.name && (
                 <div className="font-semibold text-primary mt-1">
                   الفرع: {branch.name}
                 </div>
               )} */}
+            </div>
+            <div className="text-sm">
+              <div>جوال: {branch?.phone || "-"}</div>
             </div>
           </div>
 
@@ -166,11 +177,13 @@ export default function RentalContract() {
 
           <div className="text-left">
             <div className="font-bold text-lg mb-2">
-              مؤسسة {branch?.name || "عتبة المحلات"}
+              التاريخ: {rental.start_date}
+            </div>
+            <div className="text-sm mb-2">
+              <div>الوقت: {rental.start_time || "-"}</div>
             </div>
             <div className="text-sm">
-              <div>لتأجير وبيع وصيانة المعدات</div>
-              {branch?.address && <div>{branch.address}</div>}
+              <div>رقم العقد: {rental.id.slice(0, 8)}</div>
             </div>
           </div>
         </div>
@@ -229,14 +242,14 @@ export default function RentalContract() {
                 {customer?.phone || rental.customers?.phone || "-"}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            {/* <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
                 رقم العقد
               </div>
               <div className="border border-gray-800 p-2">
                 {rental.id.slice(0, 8)}
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -331,41 +344,36 @@ export default function RentalContract() {
         {/* Terms and Conditions */}
         <div className="text-xs leading-relaxed space-y-1.5 mb-6 border-t pt-3 avoid-break">
           <p className="font-semibold text-center mb-2">الشروط والأحكام</p>
-          <p>• مدة الإيجار اليومية 24 ساعة من وقت الاستلام.</p>
           <p>
-            • يستحق الإيجار اليومي عن كل 24 ساعة أو جزء منها ما لم يتم الإرجاع.
+            م١ـ يلتزم العميل بترجيع المعدات المستاجرة ليوم واحده قبل نهاية
+            الدوام ليﻼ
           </p>
           <p>
-            • يلتزم المستأجر بإعادة المعدة سليمة ونظيفة، ويتحمل تكلفة أي تلف أو
-            فقدان.
+            م٢ـ يلتزم العميل بترجيع المعده في الوقت المحدد وفي حال عدم الترجع
+            يلتزم العميل بدفع اﻻيام المتاخره بسعر ايجار المعده اليومي المذكوره
+            أعﻼه
           </p>
           <p>
-            • يحق للمؤسسة خصم قيمة التلف أو الإصلاح من التأمين/الضمان حتى تسوية
-            المستحقات.
+            م٣ـ يلتزم العميل بترجيع المعدة سليمه وبدون اي تلف ناتج عن سوء
+            اﻻستخدام و في حال التلف يلتزم العميل بكافه تكاليف اﻻصﻼح من اجور قطع
+            الغيار وفي حال تلف المعده يتحمل المستاجر تصليح .
           </p>
           <p>
-            • على المستأجر فحص المعدة عند الاستلام وإبلاغ المؤسسة فوراً بأي
-            ملاحظة.
+            م٤ـ المؤسسة غير مسؤلة عن اي خسائر في اﻻرواح والممتلكات نتيجه اي سبب
+            في المعده .
           </p>
           <p>
-            • يتحمل المستأجر أي أضرار ناتجة عن سوء الاستخدام أو التشغيل غير
-            الصحيح.
+            م٥ـ للمؤسسة حق اﻻحتفاظ بقيمه التأمين في حالة تلف المعدة لحين اصﻼحها
+            وتصفيه المستحقات
           </p>
           <p>
-            • لا يجوز نقل المعدة أو تأجيرها من الباطن إلا بموافقة خطية من
-            المؤسسة.
+            م٦ـ حسب اﻻيجار المعده من بعد خروجها من المحل وما لم تكن غير صالحه
+            للعمل .
           </p>
           <p>
-            • تحتفظ المؤسسة بحقها في حجز نسبة من التأمين حتى اكتمال الإصلاحات
-            وسداد جميع المستحقات.
-          </p>
-          <p>
-            • في حال التأخر عن السداد يحق للمؤسسة المطالبة قانونياً بعد إشعار
-            المستأجر.
-          </p>
-          <p>
-            • الأسعار لا تشمل الوقود أو المُشغّل أو النقل أو الرسوم الحكومية ما
-            لم يُذكر خلاف ذلك.
+            م٧ ـاقر انا الموقع ادناه انني استلمت المعده بحاله جيده و انه تم
+            ابﻼغي بالطريقه الصحيحه . لﻼستعمال المعده وانني مسؤول عن اي تلف يحدث
+            للمعدة
           </p>
         </div>
 

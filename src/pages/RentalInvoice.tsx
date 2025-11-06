@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   getAllFromLocal,
   getFromLocal,
@@ -22,6 +22,7 @@ function daysBetween(startISO: string, endISO?: string) {
 
 export default function RentalInvoice() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [rental, setRental] = useState<AnyRecord | null>(null);
   const [items, setItems] = useState<AnyRecord[]>([]);
   const [branch, setBranch] = useState<BranchData | null>(null);
@@ -114,12 +115,15 @@ export default function RentalInvoice() {
       <div className="p-6">
         <div className="max-w-3xl mx-auto">
           <div className="flex justify-between items-center mb-4">
-            <Link to="/rentals" className="no-underline">
-              <Button variant="ghost" className="gap-2 no-print">
-                <ArrowRight className="h-4 w-4" />
-                العودة للإيجارات
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              onClick={() => navigate(-1)}
+              variant="ghost"
+              className="gap-2 no-print"
+            >
+              <ArrowRight className="h-4 w-4" />
+              العودة للإيجارات
+            </Button>
           </div>
           <div className="text-center text-muted-foreground">
             لا يوجد عقد بهذا الرقم
@@ -269,11 +273,14 @@ export default function RentalInvoice() {
         )}
 
         <div className="flex items-center justify-between p-6 border-t no-print">
-          <Link to="/rentals" className="no-underline">
-            <Button variant="outline" className="gap-2">
-              <ArrowRight className="h-4 w-4" /> عودة
-            </Button>
-          </Link>
+          <Button
+            type="button"
+            onClick={() => navigate(-1)}
+            variant="outline"
+            className="gap-2"
+          >
+            <ArrowRight className="h-4 w-4" /> عودة
+          </Button>
           <Button onClick={print} className="gap-2">
             <Printer className="h-4 w-4" /> طباعة
           </Button>

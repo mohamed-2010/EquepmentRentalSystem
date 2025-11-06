@@ -755,6 +755,32 @@ export default function DailyRentals() {
                           </p>
                         </div>
                         <Badge variant="secondary">مكتمل</Badge>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              navigate(`/rentals/${rental.id}/contract`)
+                            }
+                            title="طباعة العقد"
+                            className="gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            طباعة العقد
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() =>
+                              navigate(`/rentals/${rental.id}/invoice`)
+                            }
+                            title="طباعة الفاتورة"
+                            className="gap-2"
+                          >
+                            <Printer className="h-4 w-4" />
+                            طباعة فاتورة
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">

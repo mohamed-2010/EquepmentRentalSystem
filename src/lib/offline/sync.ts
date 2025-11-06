@@ -200,7 +200,7 @@ export async function pullDataFromBackend(): Promise<void> {
           `
         *,
         customers(full_name, phone),
-        branches(name)
+        branches(name, address, phone)
       `
         )
         .order("created_at", { ascending: false }),
