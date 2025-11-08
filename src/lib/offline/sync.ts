@@ -173,7 +173,7 @@ async function processQueueItem(item: QueueItem): Promise<void> {
       // If still missing, fail fast with clear error to avoid NOT NULL violation loop
       if (!cleanData.equipment_id) {
         throw new Error(
-          'Missing equipment_id for rental_items; cannot insert until it is provided.'
+          "Missing equipment_id for rental_items; cannot insert until it is provided."
         );
       }
     }

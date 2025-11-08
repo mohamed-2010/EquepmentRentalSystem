@@ -187,7 +187,9 @@ export function useOfflineRentals() {
     // استخدم أول معدة كمرجع لـ equipment_id في جدول rentals (مطلوب حالياً في المخطط)
     const primaryEquipmentId = normalizedItems[0]?.equipment_id;
     if (!primaryEquipmentId) {
-      throw new Error("لا توجد معدة رئيسية، تأكد من اختيار معدة واحدة على الأقل.");
+      throw new Error(
+        "لا توجد معدة رئيسية، تأكد من اختيار معدة واحدة على الأقل."
+      );
     }
 
     // احصل على المستخدم الحالي (لملء created_by المطلوب من Supabase)
@@ -211,7 +213,8 @@ export function useOfflineRentals() {
     }
 
     // تأكد من وجود start_date وإلا استخدم تاريخ اليوم
-    const startDate = rentalData.start_date || new Date().toISOString().split("T")[0];
+    const startDate =
+      rentalData.start_date || new Date().toISOString().split("T")[0];
     const newRental: RentalData = {
       ...rentalData,
       id: rentalId,
@@ -383,7 +386,7 @@ export function useOfflineRentals() {
       await addToQueue("rental_items", "insert", rentalItem);
 
       // Enrich rental item with equipment data
-  const equip = equipment?.find((e: any) => e.id === item.equipment_id);
+      const equip = equipment?.find((e: any) => e.id === item.equipment_id);
       enrichedItems.push({
         ...rentalItem,
         equipment: equip

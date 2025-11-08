@@ -320,9 +320,11 @@ export default function MonthlyRentals() {
 
       // الانتقال مباشرةً لعرض العقد للطباعة للإيجار الشهري
       try {
-        const latestRentalId = (rentals[0]?.id) || null;
+        const latestRentalId = rentals[0]?.id || null;
         setTimeout(() => {
-          const idToUse = latestRentalId || rentals.find(r => r.customer_id === selectedCustomer)?.id;
+          const idToUse =
+            latestRentalId ||
+            rentals.find((r) => r.customer_id === selectedCustomer)?.id;
           if (idToUse) {
             navigate(`/rentals/${idToUse}/contract`);
           }
