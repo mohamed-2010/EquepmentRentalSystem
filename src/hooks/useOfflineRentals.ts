@@ -174,13 +174,54 @@ export function useOfflineRentals() {
 
   const createRental = async (rentalData: any, equipmentItems: any[]) => {
     const rentalId = uuidv4();
+    // طبيع شكل عناصر المعدات لتكون equipment_id بدل equipmentId
+    const normalizedItems = (equipmentItems || [])
+      .map((it) => ({
+        equipment_id: it.equipment_id || it.equipmentId,
+        quantity: it.quantity || 1,
+        notes: it.notes || null,
+        start_date: it.start_date,
+      }))
+      .filter((it) => !!it.equipment_id);
+
+    // استخدم أول معدة كمرجع لـ equipment_id في جدول rentals (مطلوب حالياً في المخطط)
+    const primaryEquipmentId = normalizedItems[0]?.equipment_id;
+    if (!primaryEquipmentId) {
+      throw new Error("لا توجد معدة رئيسية، تأكد من اختيار معدة واحدة على الأقل.");
+    }
+
+    // احصل على المستخدم الحالي (لملء created_by المطلوب من Supabase)
+    let currentUserId: string | null = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      currentUserId = data.user?.id || null;
+    } catch (e) {
+      console.warn("Failed to get current user id", e);
+      // حاول من localStorage (وضع offline)
+      try {
+        const offlineUserRaw = localStorage.getItem("supabase.auth.user");
+        if (offlineUserRaw) {
+          currentUserId = JSON.parse(offlineUserRaw).id;
+        }
+      } catch {}
+    }
+    if (!currentUserId) {
+      // للسماح بالعمل أوفلاين خالي، استخدم معرف وهمي ثابت؛ سيمنع الإدخال الأونلاين لكنه يحفظ محلياً بدون تعطل
+      currentUserId = "offline-user";
+    }
+
+    // تأكد من وجود start_date وإلا استخدم تاريخ اليوم
+    const startDate = rentalData.start_date || new Date().toISOString().split("T")[0];
     const newRental: RentalData = {
       ...rentalData,
       id: rentalId,
+      start_date: startDate,
+      equipment_id: primaryEquipmentId,
+      created_by: currentUserId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       synced: false,
-    };
+    } as any; // casting لأن RentalData في المخطط الأصلي كان يحتوي الحقول الإضافية الإلزامية
 
     // إذا كان online، حاول الحفظ في Supabase أولاً
     if (isOnline) {
@@ -188,15 +229,18 @@ export function useOfflineRentals() {
         const { data: rental, error: rentalError } = await supabase
           .from("rentals")
           .insert({
+            id: rentalId,
             customer_id: rentalData.customer_id,
-            equipment_id: rentalData.equipment_id,
+            equipment_id: primaryEquipmentId,
             branch_id: rentalData.branch_id,
-            created_by: rentalData.created_by,
-            start_date: rentalData.start_date,
-            status: rentalData.status,
+            created_by: currentUserId,
+            start_date: startDate,
+            status: "active",
             rental_type: rentalData.rental_type,
             is_fixed_duration: rentalData.is_fixed_duration,
-            expected_end_date: rentalData.expected_end_date,
+            expected_end_date: rentalData.is_fixed_duration
+              ? rentalData.expected_end_date
+              : null,
           })
           .select()
           .single();
@@ -209,12 +253,12 @@ export function useOfflineRentals() {
           newRental.synced = true;
 
           // حفظ عناصر الإيجار في Supabase
-          const itemsToInsert = equipmentItems.map((item) => ({
+          const itemsToInsert = normalizedItems.map((item) => ({
             rental_id: rental.id,
             equipment_id: item.equipment_id,
-            start_date: item.start_date,
+            start_date: startDate,
             quantity: item.quantity || 1,
-            notes: item.notes,
+            notes: item.notes || null,
           }));
 
           const { data: insertedItems } = await supabase
@@ -222,8 +266,9 @@ export function useOfflineRentals() {
             .insert(itemsToInsert)
             .select();
 
-          // تحديث حالة المعدات في Supabase
-          for (const item of equipmentItems) {
+          // تحديث حالة المعدات في Supabase (مع تجاهل العناصر غير الصالحة)
+          for (const item of normalizedItems) {
+            if (!item.equipment_id) continue;
             await supabase
               .from("equipment")
               .update({ status: "rented" })
@@ -321,12 +366,12 @@ export function useOfflineRentals() {
     const enrichedItems = [];
 
     // حفظ عناصر الإيجار
-    for (const item of equipmentItems) {
+    for (const item of normalizedItems) {
       const rentalItem: RentalItemData = {
         id: uuidv4(),
         rental_id: rentalId,
         equipment_id: item.equipment_id,
-        start_date: item.start_date,
+        start_date: item.start_date || startDate,
         quantity: item.quantity || 1,
         notes: item.notes,
         created_at: new Date().toISOString(),
@@ -338,7 +383,7 @@ export function useOfflineRentals() {
       await addToQueue("rental_items", "insert", rentalItem);
 
       // Enrich rental item with equipment data
-      const equip = equipment?.find((e: any) => e.id === item.equipment_id);
+  const equip = equipment?.find((e: any) => e.id === item.equipment_id);
       enrichedItems.push({
         ...rentalItem,
         equipment: equip

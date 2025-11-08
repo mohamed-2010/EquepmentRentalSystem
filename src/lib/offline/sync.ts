@@ -79,7 +79,29 @@ export async function syncWithBackend(): Promise<{
       return a.timestamp - b.timestamp;
     });
 
-    for (const item of sortedQueue) {
+    // تنظيف عناصر الطابور الفاسدة الخاصة بـ rental_items قبل المعالجة (تفتقد equipment_id)
+    const invalidRentalItems = sortedQueue.filter(
+      (q) =>
+        q.table === "rental_items" &&
+        !q.data?.equipment_id &&
+        !q.data?.equipmentId &&
+        !q.data?.equipment?.id
+    );
+    if (invalidRentalItems.length) {
+      console.warn(
+        `🧹 Removing ${invalidRentalItems.length} invalid rental_items from queue (missing equipment_id)`
+      );
+      for (const bad of invalidRentalItems) {
+        await removeFromQueue(bad.id);
+      }
+    }
+
+    // أعِد بناء الطابور بعد التنظيف
+    const cleanedQueue = sortedQueue.filter(
+      (q) => !invalidRentalItems.includes(q)
+    );
+
+    for (const item of cleanedQueue) {
       try {
         await processQueueItem(item);
         await removeFromQueue(item.id);
@@ -120,13 +142,41 @@ async function processQueueItem(item: QueueItem): Promise<void> {
 
   try {
     // Remove local-only fields and relationships before sending to Supabase
-    const cleanData = { ...data };
+    const cleanData = { ...data } as any;
     delete cleanData.synced;
     delete cleanData.branches;
     delete cleanData.customers;
     delete cleanData.equipment;
     delete cleanData.rental_items;
     delete cleanData.user_roles;
+
+    // Guard: ensure required foreign keys exist for dependent tables
+    if (table === "rental_items") {
+      // Try to derive missing foreign keys from original data
+      if (!cleanData.equipment_id) {
+        const derivedEqId =
+          (data as any)?.equipment_id ||
+          (data as any)?.equipmentId ||
+          (data as any)?.equipment?.id;
+        if (derivedEqId) cleanData.equipment_id = derivedEqId;
+      }
+      if (!cleanData.rental_id && (data as any)?.rental_id) {
+        cleanData.rental_id = (data as any).rental_id;
+      }
+      if (!cleanData.start_date && (data as any)?.start_date) {
+        cleanData.start_date = (data as any).start_date;
+      }
+      if (!cleanData.quantity) {
+        cleanData.quantity = (data as any)?.quantity ?? 1;
+      }
+
+      // If still missing, fail fast with clear error to avoid NOT NULL violation loop
+      if (!cleanData.equipment_id) {
+        throw new Error(
+          'Missing equipment_id for rental_items; cannot insert until it is provided.'
+        );
+      }
+    }
 
     switch (operation) {
       case "insert": {

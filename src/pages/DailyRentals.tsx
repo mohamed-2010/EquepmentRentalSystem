@@ -312,10 +312,26 @@ export default function DailyRentals() {
           branch_id: branchId,
           rental_type: "daily",
           is_fixed_duration: isFixedDuration,
+          start_date: startDate,
           expected_end_date: isFixedDuration ? expectedEndDate : undefined,
         },
         validEquipment
       );
+
+      // الانتقال مباشرةً لعرض العقد للطباعة
+      // استخدم أول إيجار تم إنشاؤه (createRental يعيد الإيجار الجديد)
+      try {
+        const latestRentalId = (rentals[0]?.id) || null;
+        // إفتراضيًا: لو لم نستطع الحصول على معرف من الحالة القديمة، انتظر تحديث الحالة القصير
+        setTimeout(() => {
+          const idToUse = latestRentalId || rentals.find(r => r.customer_id === selectedCustomer)?.id;
+          if (idToUse) {
+            navigate(`/rentals/${idToUse}/contract`);
+          }
+        }, 150);
+      } catch (e) {
+        console.warn("Failed auto navigate to contract", e);
+      }
 
       toast({
         title: "تم بنجاح",
