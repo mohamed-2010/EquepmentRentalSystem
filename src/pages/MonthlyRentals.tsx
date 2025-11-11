@@ -79,6 +79,8 @@ export default function MonthlyRentals() {
   const [rentalEquipment, setRentalEquipment] = useState<RentalEquipment[]>([
     { equipmentId: "", quantity: 1, notes: "" },
   ]);
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const isOnline = useOnlineStatus();
@@ -156,6 +158,31 @@ export default function MonthlyRentals() {
     (r) => r.status === "completed" && r.rental_type === "monthly"
   );
 
+  // تصفية الإيجارات بناءً على البحث
+  const filterRentals = (rentalsList: any[]) => {
+    if (!searchQuery.trim()) return rentalsList;
+
+    const query = searchQuery.toLowerCase().trim();
+    return rentalsList.filter((rental) => {
+      const customerName = rental.customers?.full_name?.toLowerCase() || "";
+      const customerPhone = rental.customers?.phone?.toLowerCase() || "";
+      const branchName = rental.branches?.name?.toLowerCase() || "";
+      const invoiceNumber = rental.invoice_number?.toString() || "";
+
+      return (
+        customerName.includes(query) ||
+        customerPhone.includes(query) ||
+        branchName.includes(query) ||
+        invoiceNumber.includes(query)
+      );
+    });
+  };
+
+  const filteredActiveMonthlyRentals = filterRentals(monthlyRentals);
+  const filteredCompletedMonthlyRentals = filterRentals(
+    completedMonthlyRentals
+  );
+
   const [editRentalOpen, setEditRentalOpen] = useState<{
     open: boolean;
     rental: any | null;
@@ -164,6 +191,7 @@ export default function MonthlyRentals() {
     is_fixed_duration: true,
     expected_end_date: "",
     notes: "",
+    deposit_amount: 0,
   });
   const [editEquipment, setEditEquipment] = useState<RentalEquipment[]>([]);
 
@@ -175,6 +203,7 @@ export default function MonthlyRentals() {
         ? String(rental.expected_end_date).slice(0, 10)
         : "",
       notes: rental.notes || "",
+      deposit_amount: rental.deposit_amount || 0,
     });
 
     // تحميل المعدات الحالية
@@ -200,6 +229,7 @@ export default function MonthlyRentals() {
           ? editRentalValues.expected_end_date
           : null,
         notes: editRentalValues.notes,
+        deposit_amount: editRentalValues.deposit_amount,
       } as any);
 
       // تحديث المعدات (يمكن تطوير هذا لاحقاً لإضافة/حذف معدات)
@@ -314,6 +344,7 @@ export default function MonthlyRentals() {
           is_fixed_duration: isFixedDuration,
           start_date: startDate,
           expected_end_date: isFixedDuration ? expectedEndDate : undefined,
+          deposit_amount: depositAmount,
         },
         validEquipment
       );
@@ -345,6 +376,7 @@ export default function MonthlyRentals() {
       setStartDate(new Date().toISOString().split("T")[0]);
       setExpectedEndDate("");
       setRentalEquipment([{ equipmentId: "", quantity: 1, notes: "" }]);
+      setDepositAmount(0);
     } catch (error: any) {
       toast({
         title: "خطأ",
@@ -518,6 +550,22 @@ export default function MonthlyRentals() {
                   ))}
                 </div>
 
+                {/* حقل التأمين */}
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="deposit_amount">مبلغ التأمين (ريال)</Label>
+                  <Input
+                    id="deposit_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={depositAmount}
+                    onChange={(e) =>
+                      setDepositAmount(parseFloat(e.target.value) || 0)
+                    }
+                    placeholder="0"
+                  />
+                </div>
+
                 <div className="flex gap-2 justify-end pt-4">
                   <Button
                     type="button"
@@ -535,25 +583,62 @@ export default function MonthlyRentals() {
           </Dialog>
         </div>
 
+        {/* حقل البحث */}
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <Input
+              placeholder="ابحث بالاسم، رقم الهاتف، الفرع، أو رقم الفاتورة..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSearchQuery("")}
+            >
+              مسح
+            </Button>
+          )}
+        </div>
+
         <Tabs defaultValue="active" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="active">
-              نشطة ({monthlyRentals.length})
+              نشطة ({filteredActiveMonthlyRentals.length})
             </TabsTrigger>
             <TabsTrigger value="completed">
-              مكتملة ({completedMonthlyRentals.length})
+              مكتملة ({filteredCompletedMonthlyRentals.length})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4">
-            {monthlyRentals.length === 0 ? (
+            {filteredActiveMonthlyRentals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8 text-muted-foreground">
-                  لا توجد إيجارات شهرية حالياً
+                  {searchQuery
+                    ? "لا توجد نتائج للبحث"
+                    : "لا توجد إيجارات شهرية حالياً"}
                 </CardContent>
               </Card>
             ) : (
-              monthlyRentals.map((rental) => {
+              filteredActiveMonthlyRentals.map((rental) => {
                 const items = getRentalItems(rental.id);
                 const activeItems = items.filter((i) => !i.return_date);
 
@@ -747,14 +832,16 @@ export default function MonthlyRentals() {
           </TabsContent>
 
           <TabsContent value="completed" className="space-y-4">
-            {completedMonthlyRentals.length === 0 ? (
+            {filteredCompletedMonthlyRentals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8 text-muted-foreground">
-                  لا توجد إيجارات مكتملة
+                  {searchQuery
+                    ? "لا توجد نتائج للبحث"
+                    : "لا توجد إيجارات مكتملة"}
                 </CardContent>
               </Card>
             ) : (
-              completedMonthlyRentals.map((rental) => {
+              filteredCompletedMonthlyRentals.map((rental) => {
                 const items = getRentalItems(rental.id);
 
                 return (
@@ -910,6 +997,25 @@ export default function MonthlyRentals() {
                   setEditRentalValues((v) => ({ ...v, notes: e.target.value }))
                 }
                 rows={3}
+              />
+            </div>
+
+            {/* حقل مبلغ التأمين */}
+            <div className="space-y-2">
+              <Label htmlFor="e-deposit">مبلغ التأمين (ريال)</Label>
+              <Input
+                id="e-deposit"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editRentalValues.deposit_amount}
+                onChange={(e) =>
+                  setEditRentalValues((v) => ({
+                    ...v,
+                    deposit_amount: parseFloat(e.target.value) || 0,
+                  }))
+                }
+                placeholder="0"
               />
             </div>
 

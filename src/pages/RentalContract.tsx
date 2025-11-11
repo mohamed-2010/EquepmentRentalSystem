@@ -152,10 +152,10 @@ export default function RentalContract() {
         {/* Header */}
         <div className="grid grid-cols-3 gap-4 mb-8 pb-4 border-b-2 border-gray-300">
           <div className="text-right">
-            <h3 className="font-bold text-lg mb-2">
+            <h1 className="font-bold text-lg mb-2">
               {branch?.company_name ||
                 `مؤسسة ${branch?.name || "عتبة المحلات"}`}
-            </h3>
+            </h1>
             <div className="text-sm mb-2">
               <div>لتأجير المعدات و صيانتها</div>
               {/* {branch?.name && (
@@ -180,10 +180,19 @@ export default function RentalContract() {
               التاريخ: {rental.start_date}
             </div>
             <div className="text-sm mb-2">
-              <div>الوقت: {rental.start_time || "-"}</div>
+              <div>
+                الوقت:{" "}
+                {rental.created_at
+                  ? format(new Date(rental.created_at), "hh:mm a", {
+                      locale: ar,
+                    })
+                  : "-"}
+              </div>
             </div>
             <div className="text-sm">
-              <div>رقم العقد: {rental.id.slice(0, 8)}</div>
+              <div>
+                رقم العقد: {rental.invoice_number || rental.id.slice(0, 8)}
+              </div>
             </div>
           </div>
         </div>
@@ -201,29 +210,29 @@ export default function RentalContract() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
-                موقع العمل
+                رقم الهوية / الإقامة
               </div>
               <div className="border border-gray-800 p-2">
-                {(customer as any)?.address || "-"}
+                {(customer as any)?.id_number || "-"}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            {/* <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
                 التــــاريخ
               </div>
               <div className="border border-gray-800 p-2">
                 {format(new Date(rental.start_date), "dd/MM/yyyy")}
               </div>
-            </div>
+            </div> */}
           </div>
 
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
-                رقم الهوية / الإقامة
+                الجـــوال
               </div>
               <div className="border border-gray-800 p-2">
-                {(customer as any)?.id_number || "-"}
+                {(customer as any)?.phone || "-"}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -234,14 +243,14 @@ export default function RentalContract() {
                 {(customer as any)?.id_source || "-"}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            {/* <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
                 الجـــوال
               </div>
               <div className="border border-gray-800 p-2">
                 {customer?.phone || rental.customers?.phone || "-"}
               </div>
-            </div>
+            </div> */}
             {/* <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="border border-gray-800 p-2 text-center font-semibold bg-gray-100">
                 رقم العقد
@@ -307,7 +316,7 @@ export default function RentalContract() {
                   )}
                 </td>
               </tr>
-              <tr>
+              {/* <tr>
                 <td
                   colSpan={4}
                   className="border border-gray-800 p-2 text-center font-bold bg-gray-100"
@@ -317,53 +326,53 @@ export default function RentalContract() {
                 <td className="border border-gray-800 p-2 text-center font-bold">
                   0
                 </td>
-              </tr>
+              </tr> */}
               <tr>
                 <td
                   colSpan={4}
                   className="border border-gray-800 p-2 text-center font-bold bg-gray-100"
                 >
-                  الخـــصم
+                  تأمين
                 </td>
                 <td className="border border-gray-800 p-2 text-center font-bold">
-                  0
+                  {(rental?.deposit_amount || 0).toLocaleString("ar-EG")}
                 </td>
               </tr>
-              <tr>
+              {/* <tr>
                 <td
                   colSpan={5}
                   className="border border-gray-800 p-2 text-center font-bold bg-gray-100"
                 >
                   إجمالي سداد الفاتورة
                 </td>
-              </tr>
+              </tr> */}
             </tfoot>
           </table>
         </div>
 
         {/* Terms and Conditions */}
-        <div className="text-xs leading-relaxed space-y-1.5 mb-6 border-t pt-3 avoid-break">
+        <div className="text-lg leading-relaxed space-y-1.5 mb-6 border-t pt-3 avoid-break">
           <p className="font-semibold text-center mb-2">الشروط والأحكام</p>
           <p>
             م١ـ يلتزم العميل بترجيع المعدات المستاجرة ليوم واحده قبل نهاية
-            الدوام ليﻼ
+            الدوام ليلا
           </p>
           <p>
             م٢ـ يلتزم العميل بترجيع المعده في الوقت المحدد وفي حال عدم الترجع
             يلتزم العميل بدفع اﻻيام المتاخره بسعر ايجار المعده اليومي المذكوره
-            أعﻼه
+            اعلاه
           </p>
           <p>
             م٣ـ يلتزم العميل بترجيع المعدة سليمه وبدون اي تلف ناتج عن سوء
-            اﻻستخدام و في حال التلف يلتزم العميل بكافه تكاليف اﻻصﻼح من اجور قطع
-            الغيار وفي حال تلف المعده يتحمل المستاجر تصليح .
+            اﻻستخدام و في حال التلف يلتزم العميل بكافه تكاليف الاصلاح من اجور
+            قطع الغيار وفي حال تلف المعده يتحمل المستاجر تصليح .
           </p>
           <p>
             م٤ـ المؤسسة غير مسؤلة عن اي خسائر في اﻻرواح والممتلكات نتيجه اي سبب
             في المعده .
           </p>
           <p>
-            م٥ـ للمؤسسة حق اﻻحتفاظ بقيمه التأمين في حالة تلف المعدة لحين اصﻼحها
+            م٥ـ للمؤسسة حق اﻻحتفاظ بقيمه التأمين في حالة تلف المعدة لحين اصلاحها
             وتصفيه المستحقات
           </p>
           <p>
@@ -372,8 +381,8 @@ export default function RentalContract() {
           </p>
           <p>
             م٧ ـاقر انا الموقع ادناه انني استلمت المعده بحاله جيده و انه تم
-            ابﻼغي بالطريقه الصحيحه . لﻼستعمال المعده وانني مسؤول عن اي تلف يحدث
-            للمعدة
+            ابلاغي بالطريقه الصحيحه . للإستعمال المعده وانني مسؤول عن اي تلف
+            يحدث للمعدة
           </p>
         </div>
 
@@ -388,7 +397,7 @@ export default function RentalContract() {
               التوقيع
             </div>
           </div>
-          <div className="text-center">
+          {/* <div className="text-center">
             <div className="mb-12 text-sm">........................</div>
             <div className="font-bold border-t-2 border-gray-800 pt-2">
               الاسم
@@ -396,7 +405,7 @@ export default function RentalContract() {
             <div className="font-bold border-t-2 border-gray-800 pt-2 mt-4">
               التوقيع
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

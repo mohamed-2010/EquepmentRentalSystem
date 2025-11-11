@@ -221,6 +221,7 @@ export function useOfflineRentals() {
       start_date: startDate,
       equipment_id: primaryEquipmentId,
       created_by: currentUserId,
+      deposit_amount: rentalData.deposit_amount || 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       synced: false,
@@ -244,6 +245,7 @@ export function useOfflineRentals() {
             expected_end_date: rentalData.is_fixed_duration
               ? rentalData.expected_end_date
               : null,
+            deposit_amount: rentalData.deposit_amount || 0,
           })
           .select()
           .single();

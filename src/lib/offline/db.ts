@@ -40,6 +40,8 @@ export interface RentalData {
   rental_type?: string;
   days_count?: number;
   total_amount?: number;
+  deposit_amount?: number;
+  invoice_number?: number;
   notes?: string;
   created_by: string;
   created_at: string;

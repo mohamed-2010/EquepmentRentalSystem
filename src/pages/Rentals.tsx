@@ -78,6 +78,7 @@ export default function Rentals() {
   const [rentalEquipment, setRentalEquipment] = useState<RentalEquipment[]>([
     { equipmentId: "", quantity: 1, notes: "" },
   ]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const isOnline = useOnlineStatus();
@@ -310,6 +311,33 @@ export default function Rentals() {
     (r) => r.rental_type === "monthly"
   );
 
+  // تصفية الإيجارات بناءً على البحث
+  const filterRentals = (rentalsList: any[]) => {
+    if (!searchQuery.trim()) return rentalsList;
+
+    const query = searchQuery.toLowerCase().trim();
+    return rentalsList.filter((rental) => {
+      const customerName = rental.customers?.full_name?.toLowerCase() || "";
+      const customerPhone = rental.customers?.phone?.toLowerCase() || "";
+      const branchName = rental.branches?.name?.toLowerCase() || "";
+      const invoiceNumber = rental.invoice_number?.toString() || "";
+      const rentalType = rental.rental_type?.toLowerCase() || "";
+
+      return (
+        customerName.includes(query) ||
+        customerPhone.includes(query) ||
+        branchName.includes(query) ||
+        invoiceNumber.includes(query) ||
+        rentalType.includes(query)
+      );
+    });
+  };
+
+  const filteredDailyRentals = filterRentals(dailyRentals);
+  const filteredMonthlyRentals = filterRentals(monthlyRentals);
+  const filteredActiveRentals = filterRentals(activeRentals);
+  const filteredCompletedRentals = filterRentals(completedRentals);
+
   const [editRentalOpen, setEditRentalOpen] = useState<{
     open: boolean;
     rental: any | null;
@@ -318,6 +346,7 @@ export default function Rentals() {
     is_fixed_duration: true,
     expected_end_date: "",
     notes: "",
+    deposit_amount: 0,
   });
 
   const openEditRental = (rental: any) => {
@@ -328,6 +357,7 @@ export default function Rentals() {
         ? String(rental.expected_end_date).slice(0, 10)
         : "",
       notes: rental.notes || "",
+      deposit_amount: rental.deposit_amount || 0,
     });
   };
 
@@ -341,6 +371,7 @@ export default function Rentals() {
           ? editRentalValues.expected_end_date
           : null,
         notes: editRentalValues.notes,
+        deposit_amount: editRentalValues.deposit_amount,
       } as any);
       toast({ title: "تم تحديث عقد الإيجار" });
       setEditRentalOpen({ open: false, rental: null });
@@ -566,28 +597,65 @@ export default function Rentals() {
           </Dialog>
         </div>
 
+        {/* حقل البحث */}
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <Input
+              placeholder="ابحث بالاسم، رقم الهاتف، الفرع، نوع الإيجار، أو رقم الفاتورة..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSearchQuery("")}
+            >
+              مسح
+            </Button>
+          )}
+        </div>
+
         <Tabs defaultValue="daily" dir="rtl">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="daily">
-              الإيجارات اليومية ({dailyRentals.length})
+              الإيجارات اليومية ({filteredDailyRentals.length})
             </TabsTrigger>
             <TabsTrigger value="monthly">
-              الشهرية (خاص) ({monthlyRentals.length})
+              الشهرية (خاص) ({filteredMonthlyRentals.length})
             </TabsTrigger>
             <TabsTrigger value="completed">
-              الإيجارات المنتهية ({completedRentals.length})
+              الإيجارات المنتهية ({filteredCompletedRentals.length})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="daily" className="space-y-4">
-            {dailyRentals.length === 0 ? (
+            {filteredDailyRentals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8 text-muted-foreground">
-                  لا توجد إيجارات يومية حالياً
+                  {searchQuery
+                    ? "لا توجد نتائج للبحث"
+                    : "لا توجد إيجارات يومية حالياً"}
                 </CardContent>
               </Card>
             ) : (
-              dailyRentals.map((rental) => {
+              filteredDailyRentals.map((rental) => {
                 const items = getRentalItems(rental.id);
                 const activeItems = items.filter((i) => !i.return_date);
 
@@ -782,14 +850,16 @@ export default function Rentals() {
           </TabsContent>
 
           <TabsContent value="monthly" className="space-y-4">
-            {monthlyRentals.length === 0 ? (
+            {filteredMonthlyRentals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8 text-muted-foreground">
-                  لا توجد إيجارات شهرية (خاص) حالياً
+                  {searchQuery
+                    ? "لا توجد نتائج للبحث"
+                    : "لا توجد إيجارات شهرية (خاص) حالياً"}
                 </CardContent>
               </Card>
             ) : (
-              monthlyRentals.map((rental) => {
+              filteredMonthlyRentals.map((rental) => {
                 const items = getRentalItems(rental.id);
                 const activeItems = items.filter((i) => !i.return_date);
 
@@ -1186,14 +1256,16 @@ export default function Rentals() {
           </TabsContent> */}
 
           <TabsContent value="completed" className="space-y-4">
-            {completedRentals.length === 0 ? (
+            {filteredCompletedRentals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8 text-muted-foreground">
-                  لا توجد إيجارات منتهية بعد
+                  {searchQuery
+                    ? "لا توجد نتائج للبحث"
+                    : "لا توجد إيجارات منتهية بعد"}
                 </CardContent>
               </Card>
             ) : (
-              completedRentals.map((rental) => {
+              filteredCompletedRentals.map((rental) => {
                 const items = getRentalItems(rental.id);
 
                 return (
@@ -1418,6 +1490,26 @@ export default function Rentals() {
                 rows={3}
               />
             </div>
+
+            {/* حقل مبلغ التأمين */}
+            <div className="space-y-2">
+              <Label htmlFor="e-deposit">مبلغ التأمين (ريال)</Label>
+              <Input
+                id="e-deposit"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editRentalValues.deposit_amount}
+                onChange={(e) =>
+                  setEditRentalValues((v) => ({
+                    ...v,
+                    deposit_amount: parseFloat(e.target.value) || 0,
+                  }))
+                }
+                placeholder="0"
+              />
+            </div>
+
             <div className="flex gap-2 justify-end">
               <Button type="submit">حفظ</Button>
             </div>
