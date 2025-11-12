@@ -13,6 +13,14 @@ import { ar } from "date-fns/locale";
 
 type AnyRecord = Record<string, any>;
 
+function daysBetween(startISO: string, endISO?: string) {
+  const start = new Date(startISO);
+  const end = endISO ? new Date(endISO) : new Date();
+  const ms = end.getTime() - start.getTime();
+  const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+  return Math.max(0, days);
+}
+
 export default function RentalContract() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -148,7 +156,7 @@ export default function RentalContract() {
         {/* Header */}
         <div className="grid grid-cols-3 gap-4 mb-8 pb-4 border-b-2 border-gray-300">
           <div className="text-right">
-            <h1 className="font-bold text-lg mb-2">
+            <h1 className="font-bold text-xl mb-2">
               {branch?.company_name ||
                 `مؤسسة ${branch?.name || "عتبة المحلات"}`}
             </h1>
@@ -271,45 +279,60 @@ export default function RentalContract() {
                 <th className="border border-gray-800 p-2">نوع المعدة</th>
                 <th className="border border-gray-800 p-2">العدد</th>
                 <th className="border border-gray-800 p-2">الإيجار اليومي</th>
+                <th className="border border-gray-800 p-2">عدد الأيام</th>
                 <th className="border border-gray-800 p-2">الإجمالي</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={item.id}>
-                  <td className="border border-gray-800 p-2 text-center">
-                    {item.equipment?.code || "-"}
-                  </td>
-                  <td className="border border-gray-800 p-2">
-                    {item.equipment?.name || "معدة غير معروفة"}
-                  </td>
-                  <td className="border border-gray-800 p-2 text-center">
-                    {item.quantity || 1}
-                  </td>
-                  <td className="border border-gray-800 p-2 text-center">
-                    {item.equipment?.daily_rate || 0}
-                  </td>
-                  <td className="border border-gray-800 p-2 text-center">
-                    {(item.equipment?.daily_rate || 0) * (item.quantity || 1)}
-                  </td>
-                </tr>
-              ))}
+              {items.map((item, idx) => {
+                const days =
+                  item?.days_count ??
+                  daysBetween(item.start_date, item.return_date);
+                const rate = item.equipment?.daily_rate || 0;
+                const quantity = item.quantity || 1;
+                const total = rate * days * quantity;
+
+                return (
+                  <tr key={item.id}>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {item.equipment?.code || "-"}
+                    </td>
+                    <td className="border border-gray-800 p-2">
+                      {item.equipment?.name || "معدة غير معروفة"}
+                    </td>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {quantity}
+                    </td>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {rate}
+                    </td>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {days}
+                    </td>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {total}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   className="border border-gray-800 p-2 text-center font-bold bg-gray-100"
                 >
                   إجمالي الفاتورة
                 </td>
                 <td className="border border-gray-800 p-2 text-center font-bold">
-                  {items.reduce(
-                    (sum, it) =>
-                      sum +
-                      (it.equipment?.daily_rate || 0) * (it.quantity || 1),
-                    0
-                  )}
+                  {items.reduce((sum, it) => {
+                    const days =
+                      it?.days_count ??
+                      daysBetween(it.start_date, it.return_date);
+                    const rate = it.equipment?.daily_rate || 0;
+                    const quantity = it.quantity || 1;
+                    return sum + rate * days * quantity;
+                  }, 0)}
                 </td>
               </tr>
               {/* <tr>

@@ -102,7 +102,7 @@ export default function RentalInvoice() {
     });
     const discount = rental?.discount_amount || 0;
     const deposit = rental?.deposit_amount || 0;
-    const total = subtotal - discount + deposit;
+    const total = subtotal - discount - deposit;
     return { lines, subtotal, discount, deposit, total };
   }, [items, rental]);
 
@@ -258,8 +258,8 @@ export default function RentalInvoice() {
                   <td className="p-2 border text-right" colSpan={5}>
                     مبلغ التأمين
                   </td>
-                  <td className="p-2 border font-semibold text-green-600">
-                    +{totals.deposit.toFixed(2)}
+                  <td className="p-2 border font-semibold text-red-600">
+                    -{totals.deposit.toFixed(2)}
                   </td>
                 </tr>
               )}
