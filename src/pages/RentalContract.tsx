@@ -383,9 +383,11 @@ export default function RentalContract() {
         </div>
 
         {/* Signatures */}
-        <div className="grid grid-cols-2 gap-6 pt-4 border-t-2 border-gray-800 avoid-break">
+        <div className="grid grid-cols-1 gap-6 pt-4 border-t-2 border-gray-800 avoid-break">
           <div className="text-center">
-            <div className="mb-12 text-sm">........................</div>
+            <div className="mb-12 text-sm">
+              ........................................................................................
+            </div>
             <div className="font-bold border-t-2 border-gray-800 pt-2">
               الاسم
             </div>

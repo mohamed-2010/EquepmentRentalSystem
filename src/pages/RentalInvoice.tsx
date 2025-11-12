@@ -9,6 +9,7 @@ import {
 } from "@/lib/offline/db";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 type AnyRecord = Record<string, any>;
 
@@ -100,9 +101,9 @@ export default function RentalInvoice() {
       };
     });
     const discount = rental?.discount_amount || 0;
-    const tax = 0; // يمكن إضافة ضريبة لاحقاً
-    const total = subtotal - discount + tax;
-    return { lines, subtotal, discount, tax, total };
+    const deposit = rental?.deposit_amount || 0;
+    const total = subtotal - discount + deposit;
+    return { lines, subtotal, discount, deposit, total };
   }, [items, rental]);
 
   const print = () => window.print();
@@ -252,14 +253,16 @@ export default function RentalInvoice() {
                   </td>
                 </tr>
               )}
-              <tr>
-                <td className="p-2 border text-right" colSpan={5}>
-                  الضريبة
-                </td>
-                <td className="p-2 border font-semibold">
-                  {totals.tax.toFixed(2)}
-                </td>
-              </tr>
+              {totals.deposit > 0 && (
+                <tr>
+                  <td className="p-2 border text-right" colSpan={5}>
+                    مبلغ التأمين
+                  </td>
+                  <td className="p-2 border font-semibold text-green-600">
+                    +{totals.deposit.toFixed(2)}
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td className="p-2 border text-right" colSpan={5}>
                   الإجمالي النهائي
@@ -270,6 +273,21 @@ export default function RentalInvoice() {
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        {/* QR Code Section */}
+        <div className="px-6 pb-4 flex justify-center items-center">
+          <div className="text-center">
+            <QRCodeSVG
+              value="Branch Gear Pro - نظام إدارة تأجير المعدات"
+              size={120}
+              level="M"
+              includeMargin={true}
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Branch Gear Pro
+            </p>
+          </div>
         </div>
 
         {rental.notes && (
