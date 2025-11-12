@@ -41,6 +41,7 @@ export interface RentalData {
   days_count?: number;
   total_amount?: number;
   deposit_amount?: number;
+  discount_amount?: number;
   invoice_number?: number;
   notes?: string;
   created_by: string;

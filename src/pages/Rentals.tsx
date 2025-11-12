@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+// Offline-only: Supabase removed
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +44,7 @@ import { EquipmentAutocomplete } from "@/components/EquipmentAutocomplete";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { getAllFromLocal } from "@/lib/offline/db";
 import { useOfflineRentals } from "@/hooks/useOfflineRentals";
 import {
   AlertDialog,
@@ -81,7 +81,6 @@ export default function Rentals() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const isOnline = useOnlineStatus();
 
   // استخدام الـ hook الجديد
   const {
@@ -96,66 +95,36 @@ export default function Rentals() {
   } = useOfflineRentals();
 
   const { data: userRole } = useQuery({
-    queryKey: ["userRole", isOnline],
+    queryKey: ["userRole"],
     queryFn: async () => {
-      // الحصول على المستخدم بطريقة تعمل offline
-      let user;
-      if (isOnline) {
-        const {
-          data: { user: onlineUser },
-        } = await supabase.auth.getUser();
-        user = onlineUser;
-      } else {
-        const cachedUser = localStorage.getItem("supabase.auth.user");
-        if (cachedUser) {
-          user = JSON.parse(cachedUser);
-        } else {
-          const sessionData = sessionStorage.getItem("supabase.auth.token");
-          if (sessionData) {
-            const session = JSON.parse(sessionData);
-            user = session.user;
-          }
+      // أوفلاين: قراءة الدور من التخزين المحلي
+      const cachedRole = localStorage.getItem("user_role");
+      if (cachedRole) {
+        try {
+          return JSON.parse(cachedRole);
+        } catch {
+          return {
+            role: cachedRole,
+            branch_id: localStorage.getItem("user_branch_id"),
+          };
         }
       }
-
-      if (!user) return null;
-
-      // الحصول على role من localStorage أو Supabase
-      if (isOnline) {
-        const { data } = await supabase
-          .from("user_roles")
-          .select("role, branch_id")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
-
-        // حفظ في localStorage للاستخدام offline
-        if (data) {
-          localStorage.setItem("user_role", JSON.stringify(data));
-        }
-        return data;
-      } else {
-        // في حالة offline، جيب من localStorage
-        const cachedRole = localStorage.getItem("user_role");
-        return cachedRole ? JSON.parse(cachedRole) : null;
-      }
+      return null;
     },
-    staleTime: isOnline ? 0 : Infinity,
-    refetchOnWindowFocus: isOnline,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 
   // تحميل قائمة الفروع (للأدمن فقط)
   const { data: branches } = useQuery({
     queryKey: ["branches", userRole?.role],
     queryFn: async () => {
-      if (userRole?.role !== "admin") return [];
-      const { data } = await supabase
-        .from("branches")
-        .select("id, name")
-        .order("name");
-      return data || [];
+      if (userRole?.role !== "admin") return [] as any[];
+      const data = await getAllFromLocal("branches" as any);
+      return (data || []) as any[];
     },
-    enabled: userRole?.role === "admin" && isOnline,
+    enabled: userRole?.role === "admin",
+    staleTime: Infinity,
   });
 
   const handleCreateRental = async () => {
@@ -170,28 +139,9 @@ export default function Rentals() {
     try {
       console.log("[Rentals] Starting rental creation");
 
-      // الحصول على بيانات المستخدم من localStorage بدلاً من Supabase
-      let user;
-      if (isOnline) {
-        const {
-          data: { user: onlineUser },
-        } = await supabase.auth.getUser();
-        user = onlineUser;
-      } else {
-        // في حالة offline، احصل على المستخدم من localStorage
-        const cachedUser = localStorage.getItem("supabase.auth.user");
-        if (cachedUser) {
-          user = JSON.parse(cachedUser);
-          console.log("[Rentals] Loaded user from localStorage:", user);
-        } else {
-          // محاولة أخيرة: من sessionStorage
-          const sessionData = sessionStorage.getItem("supabase.auth.token");
-          if (sessionData) {
-            const session = JSON.parse(sessionData);
-            user = session.user;
-          }
-        }
-      }
+      // الحصول على بيانات المستخدم من التخزين المحلي (أوفلاين)
+      const offlineUserRaw = localStorage.getItem("offline.user");
+      const user = offlineUserRaw ? JSON.parse(offlineUserRaw) : null;
 
       if (!user) throw new Error("غير مسجل الدخول");
 
@@ -252,12 +202,7 @@ export default function Rentals() {
       setStartDate(new Date().toISOString().split("T")[0]);
       setExpectedEndDate("");
 
-      toast({
-        title: "تم بنجاح",
-        description: isOnline
-          ? "تم تسجيل الإيجار بنجاح"
-          : "تم تسجيل الإيجار محلياً. سيتم المزامنة عند عودة الاتصال.",
-      });
+      toast({ title: "تم بنجاح", description: "تم تسجيل الإيجار بنجاح" });
 
       // فتح صفحة العقد للطباعة بعد التأكد من حفظ البيانات
       if (newRental && newRental.id) {
@@ -347,6 +292,7 @@ export default function Rentals() {
     expected_end_date: "",
     notes: "",
     deposit_amount: 0,
+    discount_amount: 0,
   });
 
   const openEditRental = (rental: any) => {
@@ -358,6 +304,7 @@ export default function Rentals() {
         : "",
       notes: rental.notes || "",
       deposit_amount: rental.deposit_amount || 0,
+      discount_amount: rental.discount_amount || 0,
     });
   };
 
@@ -372,6 +319,7 @@ export default function Rentals() {
           : null,
         notes: editRentalValues.notes,
         deposit_amount: editRentalValues.deposit_amount,
+        discount_amount: editRentalValues.discount_amount,
       } as any);
       toast({ title: "تم تحديث عقد الإيجار" });
       setEditRentalOpen({ open: false, rental: null });
@@ -1504,6 +1452,25 @@ export default function Rentals() {
                   setEditRentalValues((v) => ({
                     ...v,
                     deposit_amount: parseFloat(e.target.value) || 0,
+                  }))
+                }
+                placeholder="0"
+              />
+            </div>
+
+            {/* حقل الخصم */}
+            <div className="space-y-2">
+              <Label htmlFor="e-discount">الخصم (ريال)</Label>
+              <Input
+                id="e-discount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editRentalValues.discount_amount}
+                onChange={(e) =>
+                  setEditRentalValues((v) => ({
+                    ...v,
+                    discount_amount: parseFloat(e.target.value) || 0,
                   }))
                 }
                 placeholder="0"

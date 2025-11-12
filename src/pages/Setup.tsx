@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { saveToLocal, getAllFromLocal } from "@/lib/offline/db";
+import { getOfflineUser, saveOfflineUser } from "@/lib/offline/offlineAuth";
+import { v4 as uuidv4 } from "uuid";
 
 export default function Setup() {
   const [loading, setLoading] = useState(false);
@@ -28,24 +30,20 @@ export default function Setup() {
 
   const checkUserSetup = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      // أوفلاين: التحقق من وجود مستخدم محلي
+      const offline = getOfflineUser();
+      if (!offline) {
         navigate("/auth");
         return;
       }
 
-      // التحقق إذا كان المستخدم لديه branch_id
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("branch_id")
-        .eq("user_id", user.id)
-        .limit(1);
-
-      if (userRoles && userRoles.length > 0 && userRoles[0]?.branch_id) {
-        // المستخدم مُعد بالفعل، توجيه للـ dashboard
+      // تحقق من وجود branch_id محفوظ للمستخدم
+      const userRoleStr = localStorage.getItem("user_role");
+      const userBranchId =
+        offline.branch_id || localStorage.getItem("user_branch_id");
+      if (userRoleStr || userBranchId) {
         navigate("/dashboard");
+        return;
       }
     } catch (error) {
       console.error("Error checking setup:", error);
@@ -57,34 +55,43 @@ export default function Setup() {
   const handleSetup = async () => {
     setLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("المستخدم غير مسجل الدخول");
+      const offline = getOfflineUser();
+      if (!offline) throw new Error("المستخدم غير مسجل الدخول (أوفلاين)");
 
-      // 1. إنشاء الفرع
-      const { data: branch, error: branchError } = await supabase
-        .from("branches")
-        .insert({
-          name: branchName,
-          address: branchAddress,
-          phone: branchPhone,
-        })
-        .select()
-        .single();
+      // 1) إنشاء الفرع محليًا
+      const branch = {
+        id: uuidv4(),
+        name: branchName,
+        address: branchAddress,
+        phone: branchPhone,
+        company_name: "",
+        tax_number: "",
+        commercial_registration: "",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        synced: false,
+      };
+      await saveToLocal("branches" as any, branch);
 
-      if (branchError) throw branchError;
+      // تحديث كاش الفروع في localStorage
+      try {
+        const all = await getAllFromLocal("branches");
+        localStorage.setItem("branches_cache", JSON.stringify(all));
+      } catch {}
 
-      // 2. إضافة المستخدم إلى user_roles كـ admin
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: user.id,
-        role: "admin",
+      // 2) تعيين دور المستخدم محليًا وربطه بالفرع كـ admin
+      const userRole = { role: "admin", branch_id: branch.id } as any;
+      localStorage.setItem("user_role", JSON.stringify(userRole));
+      localStorage.setItem("user_branch_id", branch.id);
+
+      // 3) تحديث بيانات المستخدم الأوفلاين بالفرع
+      saveOfflineUser({
+        ...(offline as any),
         branch_id: branch.id,
+        role: offline.role || "admin",
       });
 
-      if (roleError) throw roleError;
-
-      toast.success("تم إعداد النظام بنجاح!");
+      toast.success("تم إعداد النظام بنجاح (Offline)!");
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Setup error:", error);

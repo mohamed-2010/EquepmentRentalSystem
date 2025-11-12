@@ -1,38 +1,20 @@
-import { useState, useEffect, useRef } from "react";
-import { useOnlineStatus } from "./useOnlineStatus";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 import {
   saveToLocal,
   getAllFromLocal,
   RentalData,
   RentalItemData,
 } from "@/lib/offline/db";
-import { addToQueue } from "@/lib/offline/queue";
 import { v4 as uuidv4 } from "uuid";
 
 export function useOfflineRentals() {
   const [rentals, setRentals] = useState<any[]>([]);
   const [rentalItems, setRentalItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isOnline = useOnlineStatus();
-  const previousOnlineStatus = useRef(isOnline);
 
   useEffect(() => {
     loadRentals();
   }, []);
-
-  // Load from server only when transitioning to online
-  useEffect(() => {
-    const wasOffline = !previousOnlineStatus.current;
-    const isNowOnline = isOnline;
-
-    if (wasOffline && isNowOnline) {
-      console.log("🌐 Connection restored, reloading rentals...");
-      loadRentals();
-    }
-
-    previousOnlineStatus.current = isOnline;
-  }, [isOnline]);
 
   const loadRentals = async () => {
     setIsLoading(true);
@@ -41,53 +23,6 @@ export function useOfflineRentals() {
       await loadRentalsFromLocal();
       await loadRentalItemsFromLocal();
       setIsLoading(false);
-
-      // Then fetch from backend if online
-      if (isOnline) {
-        try {
-          // تحميل من Supabase
-          const { data: rentalsData, error: rentalsError } = await supabase
-            .from("rentals")
-            .select(
-              `
-              *,
-              customers(full_name, phone),
-              branches(name, address, phone)
-            `
-            )
-            .order("created_at", { ascending: false });
-
-          const { data: itemsData, error: itemsError } = await supabase.from(
-            "rental_items"
-          ).select(`
-              *,
-              equipment(name, code, daily_rate)
-            `);
-
-          if (!rentalsError && rentalsData) {
-            // حفظ في IndexedDB
-            for (const rental of rentalsData) {
-              await saveToLocal("rentals", {
-                ...rental,
-                synced: true,
-              });
-            }
-            setRentals(rentalsData);
-          }
-
-          if (!itemsError && itemsData) {
-            for (const item of itemsData) {
-              await saveToLocal("rental_items", {
-                ...item,
-                synced: true,
-              });
-            }
-            setRentalItems(itemsData);
-          }
-        } catch (error) {
-          console.error("Error fetching rentals from server:", error);
-        }
-      }
     } catch (error) {
       console.error("Error loading rentals:", error);
       setIsLoading(false);
@@ -110,9 +45,20 @@ export function useOfflineRentals() {
         return {
           ...rental,
           customers: customer
-            ? { full_name: customer.full_name, phone: customer.phone }
+            ? {
+                full_name: customer.full_name,
+                phone: customer.phone,
+                id_number: customer.id_number,
+                id_source: customer.id_source,
+              }
             : null,
-          branches: branch ? { name: branch.name } : null,
+          branches: branch
+            ? {
+                name: branch.name,
+                phone: branch.phone,
+                company_name: branch.company_name,
+              }
+            : null,
         };
       }) || [];
 
@@ -192,21 +138,17 @@ export function useOfflineRentals() {
       );
     }
 
-    // احصل على المستخدم الحالي (لملء created_by المطلوب من Supabase)
+    // احصل على المستخدم الحالي من التخزين المحلي (وضع Offline فقط)
     let currentUserId: string | null = null;
     try {
-      const { data } = await supabase.auth.getUser();
-      currentUserId = data.user?.id || null;
-    } catch (e) {
-      console.warn("Failed to get current user id", e);
-      // حاول من localStorage (وضع offline)
-      try {
-        const offlineUserRaw = localStorage.getItem("supabase.auth.user");
-        if (offlineUserRaw) {
-          currentUserId = JSON.parse(offlineUserRaw).id;
-        }
-      } catch {}
-    }
+      const offlineUserRaw = sessionStorage.getItem("offline_session");
+      if (offlineUserRaw) {
+        currentUserId = JSON.parse(offlineUserRaw).id;
+      } else {
+        const cachedUser = localStorage.getItem("offline.user");
+        if (cachedUser) currentUserId = JSON.parse(cachedUser).id;
+      }
+    } catch {}
     if (!currentUserId) {
       // للسماح بالعمل أوفلاين خالي، استخدم معرف وهمي ثابت؛ سيمنع الإدخال الأونلاين لكنه يحفظ محلياً بدون تعطل
       currentUserId = "offline-user";
@@ -227,144 +169,9 @@ export function useOfflineRentals() {
       synced: false,
     } as any; // casting لأن RentalData في المخطط الأصلي كان يحتوي الحقول الإضافية الإلزامية
 
-    // إذا كان online، حاول الحفظ في Supabase أولاً
-    if (isOnline) {
-      try {
-        const { data: rental, error: rentalError } = await supabase
-          .from("rentals")
-          .insert({
-            id: rentalId,
-            customer_id: rentalData.customer_id,
-            equipment_id: primaryEquipmentId,
-            branch_id: rentalData.branch_id,
-            created_by: currentUserId,
-            start_date: startDate,
-            status: "active",
-            rental_type: rentalData.rental_type,
-            is_fixed_duration: rentalData.is_fixed_duration,
-            expected_end_date: rentalData.is_fixed_duration
-              ? rentalData.expected_end_date
-              : null,
-            deposit_amount: rentalData.deposit_amount || 0,
-          })
-          .select()
-          .single();
-
-        if (rentalError) throw rentalError;
-
-        if (rental) {
-          // استخدم ID من Supabase
-          newRental.id = rental.id;
-          newRental.synced = true;
-
-          // حفظ عناصر الإيجار في Supabase
-          const itemsToInsert = normalizedItems.map((item) => ({
-            rental_id: rental.id,
-            equipment_id: item.equipment_id,
-            start_date: startDate,
-            quantity: item.quantity || 1,
-            notes: item.notes || null,
-          }));
-
-          const { data: insertedItems } = await supabase
-            .from("rental_items")
-            .insert(itemsToInsert)
-            .select();
-
-          // تحديث حالة المعدات في Supabase (مع تجاهل العناصر غير الصالحة)
-          for (const item of normalizedItems) {
-            if (!item.equipment_id) continue;
-            await supabase
-              .from("equipment")
-              .update({ status: "rented" })
-              .eq("id", item.equipment_id);
-          }
-
-          // حفظ في IndexedDB مع synced=true
-          await saveToLocal("rentals", newRental);
-
-          // Get equipment data for enrichment
-          const equipment = await getAllFromLocal("equipment");
-          const enrichedItems = [];
-
-          // حفظ عناصر الإيجار في IndexedDB
-          if (insertedItems) {
-            for (const item of insertedItems) {
-              const rentalItem: RentalItemData = {
-                ...item,
-                synced: true,
-              };
-
-              await saveToLocal("rental_items", rentalItem);
-
-              // Enrich rental item with equipment data
-              const equip = equipment?.find(
-                (e: any) => e.id === item.equipment_id
-              );
-              enrichedItems.push({
-                ...rentalItem,
-                equipment: equip
-                  ? {
-                      name: equip.name,
-                      code: equip.code,
-                      daily_rate: equip.daily_rate,
-                    }
-                  : null,
-              });
-
-              // تحديث حالة المعدة في IndexedDB
-              const equipmentToUpdate = equipment.find(
-                (e: any) => e.id === item.equipment_id
-              );
-              if (equipmentToUpdate) {
-                const updatedEquipment = {
-                  ...equipmentToUpdate,
-                  status: "rented",
-                  updated_at: new Date().toISOString(),
-                  synced: true,
-                };
-                await saveToLocal("equipment", updatedEquipment);
-              }
-            }
-          }
-
-          // Enrich rental with customer and branch data
-          const customers = await getAllFromLocal("customers");
-          const branches = await getAllFromLocal("branches");
-
-          const customer = customers?.find(
-            (c: any) => c.id === rentalData.customer_id
-          );
-          const branch = branches?.find(
-            (b: any) => b.id === rentalData.branch_id
-          );
-
-          const enrichedRental = {
-            ...newRental,
-            customers: customer
-              ? { full_name: customer.full_name, phone: customer.phone }
-              : null,
-            branches: branch ? { name: branch.name } : null,
-          };
-
-          setRentals((prev) => [enrichedRental, ...prev]);
-          setRentalItems((prev) => [...enrichedItems, ...prev]);
-
-          return enrichedRental;
-        }
-      } catch (error) {
-        console.error(
-          "Error syncing rental to Supabase, falling back to offline mode:",
-          error
-        );
-        // إذا فشل الحفظ في Supabase، استمر في الوضع offline
-      }
-    }
-
-    // الوضع Offline أو فشل الحفظ في Supabase
+    // الوضع Offline فقط
     // حفظ الإيجار محلياً
     await saveToLocal("rentals", newRental);
-    await addToQueue("rentals", "insert", newRental);
 
     // Get equipment data once for enrichment
     const equipment = await getAllFromLocal("equipment");
@@ -385,7 +192,6 @@ export function useOfflineRentals() {
       };
 
       await saveToLocal("rental_items", rentalItem);
-      await addToQueue("rental_items", "insert", rentalItem);
 
       // Enrich rental item with equipment data
       const equip = equipment?.find((e: any) => e.id === item.equipment_id);
@@ -412,7 +218,6 @@ export function useOfflineRentals() {
           synced: false,
         };
         await saveToLocal("equipment", updatedEquipment);
-        await addToQueue("equipment", "update", updatedEquipment);
       }
     }
 
@@ -428,9 +233,20 @@ export function useOfflineRentals() {
     const enrichedRental = {
       ...newRental,
       customers: customer
-        ? { full_name: customer.full_name, phone: customer.phone }
+        ? {
+            full_name: customer.full_name,
+            phone: customer.phone,
+            id_number: customer.id_number,
+            id_source: customer.id_source,
+          }
         : null,
-      branches: branch ? { name: branch.name } : null,
+      branches: branch
+        ? {
+            name: branch.name,
+            phone: branch.phone,
+            company_name: branch.company_name,
+          }
+        : null,
     };
 
     // Update states immediately
@@ -470,7 +286,6 @@ export function useOfflineRentals() {
       total += amount;
 
       await saveToLocal("rental_items", updatedItem);
-      await addToQueue("rental_items", "update", updatedItem);
       updatedItems.push(updatedItem);
 
       // تحديث حالة المعدة
@@ -482,7 +297,6 @@ export function useOfflineRentals() {
           synced: false,
         };
         await saveToLocal("equipment", updatedEquipment);
-        await addToQueue("equipment", "update", updatedEquipment);
       }
     }
 
@@ -495,40 +309,6 @@ export function useOfflineRentals() {
       synced: false,
     };
     await saveToLocal("rentals", updatedRental);
-    await addToQueue("rentals", "update", updatedRental);
-
-    // تحديث في Supabase إن أمكن (اختياري/أفضلية)
-    if (isOnline) {
-      try {
-        await supabase
-          .from("rentals")
-          .update({
-            status: "completed",
-            end_date: returnDate,
-            total_amount: total,
-          })
-          .eq("id", rentalId);
-
-        for (const ui of updatedItems) {
-          await supabase
-            .from("rental_items")
-            .update({
-              return_date: ui.return_date,
-              days_count: ui.days_count,
-              amount: ui.amount,
-            })
-            .eq("id", ui.id);
-          await supabase
-            .from("equipment")
-            .update({ status: "available" })
-            .eq("id", ui.equipment_id);
-        }
-        updatedRental.synced = true;
-        await saveToLocal("rentals", updatedRental);
-      } catch (e) {
-        console.error("Error syncing full return:", e);
-      }
-    }
 
     // تحديث الحالة محلياً
     setRentalItems((prev) =>
@@ -568,7 +348,6 @@ export function useOfflineRentals() {
     updatedItem.amount = amount;
 
     await saveToLocal("rental_items", updatedItem);
-    await addToQueue("rental_items", "update", updatedItem);
 
     // تحديث حالة المعدة
     if (equip) {
@@ -579,7 +358,6 @@ export function useOfflineRentals() {
         synced: false,
       };
       await saveToLocal("equipment", updatedEquipment);
-      await addToQueue("equipment", "update", updatedEquipment);
     }
 
     // هل كل العناصر تم إرجاعها؟
@@ -613,7 +391,6 @@ export function useOfflineRentals() {
         synced: false,
       };
       await saveToLocal("rentals", updatedRental);
-      await addToQueue("rentals", "update", updatedRental);
     }
 
     // تحديث الحالة محلياً
@@ -625,38 +402,6 @@ export function useOfflineRentals() {
       setRentals((prev) =>
         prev.map((r) => (r.id === finalRental.id ? finalRental : r))
       );
-    }
-
-    // تزامن فوري اختياري عند الاتصال
-    if (isOnline) {
-      try {
-        await supabase
-          .from("rental_items")
-          .update({
-            return_date: updatedItem.return_date,
-            days_count: updatedItem.days_count,
-            amount: updatedItem.amount,
-          })
-          .eq("id", updatedItem.id);
-        if (equip) {
-          await supabase
-            .from("equipment")
-            .update({ status: "available" })
-            .eq("id", equip.id);
-        }
-        if (allReturned) {
-          await supabase
-            .from("rentals")
-            .update({
-              status: "completed",
-              end_date: updatedRental.end_date,
-              total_amount: updatedRental.total_amount,
-            })
-            .eq("id", updatedRental.id);
-        }
-      } catch (e) {
-        console.error("Error syncing item return:", e);
-      }
     }
 
     return updatedItem;
@@ -674,20 +419,8 @@ export function useOfflineRentals() {
     } as any;
 
     await saveToLocal("rentals", updated);
-    await addToQueue("rentals", "update", updated);
 
     setRentals((prev) => prev.map((r) => (r.id === rentalId ? updated : r)));
-
-    if (isOnline) {
-      try {
-        await supabase
-          .from("rentals")
-          .update(data as any)
-          .eq("id", rentalId);
-      } catch (e) {
-        console.error("Error syncing rental update:", e);
-      }
-    }
 
     return updated;
   };
@@ -714,14 +447,12 @@ export function useOfflineRentals() {
             synced: false,
           };
           await saveToLocal("equipment", updatedEquipment);
-          await addToQueue("equipment", "update", updatedEquipment);
         }
       }
     }
 
     // Delete items locally and queue deletes BEFORE deleting rental
     for (const it of items) {
-      await addToQueue("rental_items", "delete", { id: it.id });
       // delete locally from IndexedDB
       try {
         const { deleteFromLocal } = await import("@/lib/offline/db");
@@ -735,7 +466,6 @@ export function useOfflineRentals() {
     // Remove rental items locally
     // We don't have direct bulk delete helper, state will be updated below
 
-    await addToQueue("rentals", "delete", { id: rentalId });
     try {
       const { deleteFromLocal } = await import("@/lib/offline/db");
       await deleteFromLocal("rentals", rentalId);
@@ -747,25 +477,7 @@ export function useOfflineRentals() {
     setRentalItems((prev) => prev.filter((i) => i.rental_id !== rentalId));
     setRentals((prev) => prev.filter((r) => r.id !== rentalId));
 
-    // Best-effort online delete in correct order (child rows first)
-    if (isOnline) {
-      try {
-        // delete child rows first
-        for (const it of items) {
-          await supabase.from("rental_items").delete().eq("id", it.id);
-        }
-        await supabase.from("rentals").delete().eq("id", rentalId);
-      } catch (e) {
-        console.error("Error syncing rental delete:", e);
-      }
-    }
-
-    // If online and we queued deletes (in case online delete failed), try to sync now
-    if (isOnline) {
-      try {
-        await (await import("@/lib/offline/sync")).syncWithBackend();
-      } catch {}
-    }
+    // Offline-only: no online delete or syncing
   };
 
   return {

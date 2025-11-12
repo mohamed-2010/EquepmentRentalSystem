@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+// Offline-only: Supabase disabled
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getAllFromLocal } from "@/lib/offline/db";
 
@@ -49,31 +49,13 @@ export function EquipmentAutocomplete({
 
   const loadEquipment = async () => {
     try {
-      if (isOnline) {
-        // Load from Supabase when online
-        let query = supabase
-          .from("equipment")
-          .select("id, name, code, daily_rate, status")
-          .order("name");
-
-        // if (availableOnly) {
-        //   query = query.eq("status", "available");
-        // }
-
-        const { data } = await query;
-        if (data) setEquipment(data);
-      } else {
-        // Load from IndexedDB when offline
-        console.log("[EquipmentAutocomplete] Loading from IndexedDB");
-        const data = await getAllFromLocal("equipment");
-        let filteredData = data as Equipment[];
-
-        // if (availableOnly) {
-        //   filteredData = filteredData;
-        // }
-
-        setEquipment(filteredData);
-      }
+      // Offline-only: Load from IndexedDB
+      console.log(
+        "[EquipmentAutocomplete] Loading from IndexedDB (offline-only)"
+      );
+      const data = await getAllFromLocal("equipment");
+      let filteredData = data as Equipment[];
+      setEquipment(filteredData);
     } catch (error) {
       console.error("Error loading equipment:", error);
     }

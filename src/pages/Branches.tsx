@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+// Offline-only: Supabase removed
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Building2, Phone, MapPin, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { getAllFromLocal } from "@/lib/offline/db";
 import { useOfflineBranches } from "@/hooks/useOfflineBranches";
 import {
   AlertDialog,
@@ -42,49 +42,24 @@ export default function Branches() {
     commercial_registration: "",
   });
   const { toast } = useToast();
-  const isOnline = useOnlineStatus();
   const { branches, isLoading, addBranch, updateBranch, deleteBranch } =
     useOfflineBranches(searchQuery);
 
   const { data: userRole } = useQuery({
-    queryKey: ["userRole", isOnline],
+    queryKey: ["userRole"],
     queryFn: async () => {
-      // الحصول على المستخدم بطريقة تعمل offline
-      let user;
-      if (isOnline) {
-        const {
-          data: { user: onlineUser },
-        } = await supabase.auth.getUser();
-        user = onlineUser;
-      } else {
-        const cachedUser = localStorage.getItem("supabase.auth.user");
-        if (cachedUser) {
-          user = JSON.parse(cachedUser);
+      const cachedRole = localStorage.getItem("user_role");
+      if (cachedRole) {
+        try {
+          return JSON.parse(cachedRole);
+        } catch {
+          return { role: cachedRole };
         }
       }
-
-      if (!user) return null;
-
-      // الحصول على role
-      if (isOnline) {
-        const { data } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (data) {
-          localStorage.setItem("user_role", JSON.stringify(data));
-        }
-        return data;
-      } else {
-        const cachedRole = localStorage.getItem("user_role");
-        return cachedRole ? JSON.parse(cachedRole) : null;
-      }
+      return null;
     },
-    staleTime: isOnline ? 0 : Infinity,
-    refetchOnWindowFocus: isOnline,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,12 +78,7 @@ export default function Branches() {
         commercial_registration: "",
       });
 
-      toast({
-        title: "تم الحفظ",
-        description: isOnline
-          ? "تم إضافة الفرع بنجاح"
-          : "تم حفظ الفرع محلياً وسيتم المزامنة عند الاتصال بالإنترنت",
-      });
+      toast({ title: "تم الحفظ", description: "تم إضافة الفرع بنجاح" });
     } catch (error: any) {
       toast({
         title: "خطأ",

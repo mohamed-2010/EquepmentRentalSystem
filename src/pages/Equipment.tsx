@@ -30,11 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+// Offline-only: Supabase removed
 import { toast } from "sonner";
 import { Plus, Package, Search, Pencil, Trash2 } from "lucide-react";
 import { useOfflineEquipment } from "@/hooks/useOfflineEquipment";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getAllFromLocal } from "@/lib/offline/db";
 
 interface Equipment {
@@ -73,7 +72,6 @@ const Equipment = () => {
     notes: "",
   });
 
-  const isOnline = useOnlineStatus();
   const {
     equipment,
     isLoading,
@@ -143,45 +141,7 @@ const Equipment = () => {
           }
         } catch {}
 
-        // 5) Online fallback: fetch user_roles with timeout
-        if (isOnline) {
-          try {
-            const timeoutMs = 2000;
-            const fetchPromise = supabase
-              .from("user_roles")
-              .select("branch_id")
-              .limit(1)
-              .maybeSingle();
-            const timeoutPromise = new Promise<{ data: any | null }>((res) =>
-              setTimeout(() => res({ data: null }), timeoutMs)
-            );
-            const { data } = await Promise.race([fetchPromise, timeoutPromise]);
-            if (data?.branch_id) {
-              try {
-                localStorage.setItem("user_branch_id", data.branch_id);
-                const role = localStorage.getItem("user_role");
-                if (role) {
-                  const parsed = JSON.parse(role);
-                  localStorage.setItem(
-                    "user_role",
-                    JSON.stringify({ ...parsed, branch_id: data.branch_id })
-                  );
-                }
-              } catch {}
-              return data.branch_id as string;
-            }
-            // 6) As last resort: fetch a branch and pick first (admin can operate on any)
-            const { data: branches } = await supabase
-              .from("branches")
-              .select("id")
-              .limit(isAdmin ? 1 : 2);
-            if (branches && branches.length > 0) {
-              if (isAdmin || branches.length === 1) {
-                return branches[0].id as string;
-              }
-            }
-          } catch {}
-        }
+        // Online fallback removed in offline-only mode
         return null;
       };
 
@@ -205,11 +165,7 @@ const Equipment = () => {
         branch_id: branchId,
       });
 
-      toast.success(
-        isOnline
-          ? "تمت إضافة المعدة بنجاح"
-          : "تمت إضافة المعدة محلياً. سيتم المزامنة عند عودة الاتصال."
-      );
+      toast.success("تمت إضافة المعدة بنجاح");
       setDialogOpen(false);
       setFormData({
         name: "",

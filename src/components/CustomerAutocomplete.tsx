@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+// Offline-only: Supabase disabled
 import {
   Dialog,
   DialogContent,
@@ -70,19 +70,11 @@ export function CustomerAutocomplete({
 
   const loadCustomers = async () => {
     try {
-      if (isOnline) {
-        // Load from Supabase when online
-        const { data } = await supabase
-          .from("customers")
-          .select("id, full_name, phone, id_number")
-          .order("full_name");
-        if (data) setCustomers(data);
-      } else {
-        // Load from IndexedDB when offline
-        console.log("[CustomerAutocomplete] Loading from IndexedDB");
-        const data = await getAllFromLocal("customers");
-        setCustomers(data as Customer[]);
-      }
+      console.log(
+        "[CustomerAutocomplete] Loading from IndexedDB (offline-only)"
+      );
+      const data = await getAllFromLocal("customers");
+      setCustomers(data as Customer[]);
     } catch (error) {
       console.error("Error loading customers:", error);
       toast({
@@ -124,35 +116,7 @@ export function CustomerAutocomplete({
         const legacy = localStorage.getItem("user_branch_id");
         if (legacy) return legacy;
 
-        // 5) As a last step, if online, try Supabase quickly with timeout
-        if (isOnline) {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            if (!user) return null;
-            const timeoutMs = 2000;
-            const fetchPromise = supabase
-              .from("user_roles")
-              .select("branch_id")
-              .eq("user_id", user.id)
-              .limit(1)
-              .maybeSingle();
-            const timeoutPromise = new Promise<{ data: any | null }>(
-              (resolve) => setTimeout(() => resolve({ data: null }), timeoutMs)
-            );
-            const { data } = await Promise.race([fetchPromise, timeoutPromise]);
-            if (data?.branch_id) {
-              try {
-                localStorage.setItem("user_role", JSON.stringify(data));
-              } catch {}
-              try {
-                localStorage.setItem("user_branch_id", data.branch_id);
-              } catch {}
-              return data.branch_id as string;
-            }
-          } catch {}
-        }
+        // Offline-only: no remote fallback attempt
 
         return null;
       };
@@ -177,40 +141,14 @@ export function CustomerAutocomplete({
         synced: false,
       };
 
-      if (isOnline) {
-        // Online: Save to Supabase
-        const { data, error } = await supabase
-          .from("customers")
-          .insert({
-            ...newCustomer,
-            branch_id: branchId,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        toast({
-          title: "تم بنجاح",
-          description: "تمت إضافة العميل بنجاح",
-        });
-
-        await loadCustomers();
-        onChange(data.id);
-      } else {
-        // Offline: Save to IndexedDB and queue
-        await saveToLocal("customers", customerData);
-        await addToQueue("customers", "insert", customerData);
-
-        toast({
-          title: "تم بنجاح (Offline)",
-          description:
-            "تمت إضافة العميل محلياً. سيتم المزامنة عند عودة الاتصال.",
-        });
-
-        await loadCustomers();
-        onChange(customerData.id);
-      }
+      // Offline-only: حفظ محلي فقط بدون طابور (المزامنة ملغاة)
+      await saveToLocal("customers", customerData);
+      toast({
+        title: "تم بنجاح (Offline)",
+        description: "تمت إضافة العميل محلياً في الوضع الأوفلاين الكامل",
+      });
+      await loadCustomers();
+      onChange(customerData.id);
 
       setIsAddDialogOpen(false);
       setNewCustomer({

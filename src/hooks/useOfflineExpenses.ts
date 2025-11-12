@@ -1,13 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { useOnlineStatus } from "./useOnlineStatus";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 import {
   saveToLocal,
   getAllFromLocal,
   deleteFromLocal,
 } from "@/lib/offline/db";
-import { addToQueue, getQueue, removeFromQueue } from "@/lib/offline/queue";
-import { syncWithBackend } from "@/lib/offline/sync";
 import { v4 as uuidv4 } from "uuid";
 
 export interface ExpenseData {
@@ -27,24 +23,10 @@ export interface ExpenseData {
 export function useOfflineExpenses() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isOnline = useOnlineStatus();
-  const previousOnlineStatus = useRef(isOnline);
 
   useEffect(() => {
     loadExpenses();
   }, []);
-
-  useEffect(() => {
-    const wasOffline = !previousOnlineStatus.current;
-    const isNowOnline = isOnline;
-
-    if (wasOffline && isNowOnline) {
-      console.log("🌐 Connection restored, reloading expenses...");
-      loadExpenses();
-    }
-
-    previousOnlineStatus.current = isOnline;
-  }, [isOnline]);
 
   const loadExpenses = async () => {
     setIsLoading(true);
@@ -53,50 +35,6 @@ export function useOfflineExpenses() {
       const localExpenses = await getAllFromLocal("expenses" as any);
       setExpenses(localExpenses || []);
       setIsLoading(false);
-
-      // ثم تحديث من السيرفر إذا كان متصل
-      if (isOnline) {
-        try {
-          // مزامنة البيانات المعلقة أولاً
-          await syncWithBackend();
-
-          const { data, error } = await (supabase as any)
-            .from("expenses")
-            .select("*")
-            .order("expense_date", { ascending: false });
-
-          if (!error && data) {
-            // استبعاد الصفوف المعلقة للحذف من إعادة الإضافة
-            let filteredServer = data;
-            try {
-              const q = await getQueue();
-              const deleteIds = new Set(
-                q
-                  .filter(
-                    (qi) => qi.operation === "delete" && qi.table === "expenses"
-                  )
-                  .map((qi) => qi.data?.id)
-              );
-              if (deleteIds.size > 0) {
-                filteredServer = filteredServer.filter(
-                  (e: any) => !deleteIds.has(e.id)
-                );
-              }
-            } catch {}
-
-            // حفظ البيانات من السيرفر محلياً
-            for (const expense of filteredServer) {
-              await saveToLocal("expenses" as any, {
-                ...expense,
-                synced: true,
-              });
-            }
-            setExpenses(filteredServer);
-          }
-        } catch (error) {
-          console.error("Error fetching expenses from server:", error);
-        }
-      }
     } catch (error) {
       console.error("Error loading expenses:", error);
       setIsLoading(false);
@@ -106,20 +44,21 @@ export function useOfflineExpenses() {
   const createExpense = async (data: Partial<ExpenseData>) => {
     const expenseId = uuidv4();
 
-    let user;
-    if (isOnline) {
-      const {
-        data: { user: onlineUser },
-      } = await supabase.auth.getUser();
-      user = onlineUser;
-    } else {
-      const cachedUser = localStorage.getItem("supabase.auth.user");
+    // مستخدم أوفلاين فقط
+    let user: any = null;
+    try {
+      const offlineSession = sessionStorage.getItem("offline_session");
+      if (offlineSession) user = JSON.parse(offlineSession);
+    } catch {}
+    if (!user) {
+      const cachedUser = localStorage.getItem("offline.user");
       if (cachedUser) {
-        user = JSON.parse(cachedUser);
+        try {
+          user = JSON.parse(cachedUser);
+        } catch {}
       }
     }
-
-    if (!user) throw new Error("غير مسجل الدخول");
+    if (!user) throw new Error("غير مسجل الدخول (وضع أوفلاين)");
 
     // حل مشكلة branch_id للـ Admin
     const resolveBranchId = async (): Promise<string | null> => {
@@ -151,18 +90,7 @@ export function useOfflineExpenses() {
         }
       } catch {}
 
-      // 4) محاولة من Supabase (online)
-      if (isOnline) {
-        try {
-          const { data: branches } = await supabase
-            .from("branches")
-            .select("id")
-            .limit(1);
-          if (branches && branches.length > 0) {
-            return branches[0].id as string;
-          }
-        } catch {}
-      }
+      // أوفلاين فقط: لا شبكة
 
       return null;
     };
@@ -183,73 +111,14 @@ export function useOfflineExpenses() {
     await saveToLocal("expenses" as any, newExpense);
     setExpenses((prev) => [newExpense, ...prev]);
 
-    if (isOnline) {
-      try {
-        const { data: savedData, error } = await (supabase as any)
-          .from("expenses")
-          .insert({
-            id: newExpense.id,
-            branch_id: newExpense.branch_id,
-            created_by: newExpense.created_by,
-            expense_date: newExpense.expense_date,
-            category: newExpense.category,
-            description: newExpense.description,
-            amount: newExpense.amount,
-            notes: newExpense.notes,
-          })
-          .select()
-          .single();
-
-        if (!error && savedData) {
-          // حفظ البيانات من السيرفر محلياً مع علامة synced
-          await saveToLocal("expenses" as any, { ...savedData, synced: true });
-          setExpenses((prev) =>
-            prev.map((e) =>
-              e.id === savedData.id ? { ...savedData, synced: true } : e
-            )
-          );
-        } else {
-          // إضافة إلى الـ queue في حالة الفشل
-          await addToQueue("expenses" as any, "insert", newExpense);
-        }
-      } catch (error) {
-        console.error("Error syncing expense:", error);
-        await addToQueue("expenses" as any, "insert", newExpense);
-      }
-    } else {
-      // حفظ في الـ queue للمزامنة لاحقاً
-      await addToQueue("expenses" as any, "insert", newExpense);
-    }
-
     return newExpense;
   };
 
   const deleteExpense = async (id: string) => {
-    // حذف من المحلي والـ UI فوراً
+    // حذف من المحلي والـ UI فوراً (أوفلاين فقط)
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     await deleteFromLocal("expenses" as any, id);
-
-    if (isOnline) {
-      try {
-        const { error } = await (supabase as any)
-          .from("expenses")
-          .delete()
-          .eq("id", id);
-        if (!error) {
-          // نجح الحذف من السيرفر - لا حاجة لإزالة من الـ queue
-          console.log("Expense deleted from server successfully");
-        } else {
-          // فشل الحذف، أضفه للـ queue
-          await addToQueue("expenses" as any, "delete", { id });
-        }
-      } catch (err) {
-        console.error("Error deleting expense:", err);
-        await addToQueue("expenses" as any, "delete", { id });
-      }
-    } else {
-      // حفظ في الـ queue للمزامنة لاحقاً
-      await addToQueue("expenses" as any, "delete", { id });
-    }
+    // لا تعامل شبكة
   };
 
   return {

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Package,
   Users,
@@ -95,88 +94,8 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        if (isOnline) {
-          // جلب البيانات من السيرفر
-          const [
-            equipmentRes,
-            customersRes,
-            activeRentalsRes,
-            completedRentalsRes,
-          ] = await Promise.all([
-            supabase
-              .from("equipment")
-              .select("id", { count: "exact", head: true }),
-            supabase
-              .from("customers")
-              .select("id", { count: "exact", head: true }),
-            supabase
-              .from("rentals")
-              .select("id", { count: "exact", head: true })
-              .eq("status", "active"),
-            supabase
-              .from("rentals")
-              .select("id", { count: "exact", head: true })
-              .eq("status", "completed"),
-          ]);
-
-          setStats({
-            totalEquipment: equipmentRes.count || 0,
-            totalCustomers: customersRes.count || 0,
-            activeRentals: activeRentalsRes.count || 0,
-            completedRentals: completedRentalsRes.count || 0,
-          });
-
-          // حساب الإيرادات والأرباح
-          const startDateStr = format(startDate, "yyyy-MM-dd");
-          const endDateStr = format(endDate, "yyyy-MM-dd");
-
-          // إيرادات الإيجارات
-          const { data: rentals } = await supabase
-            .from("rentals")
-            .select("total_amount, start_date")
-            .gte("start_date", startDateStr)
-            .lte("start_date", endDateStr);
-
-          const rentalRevenue =
-            rentals?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
-
-          // إيرادات الصيانة
-          const { data: maintenance } = await (supabase as any)
-            .from("maintenance_requests")
-            .select("cost, request_date")
-            .eq("status", "completed")
-            .gte("request_date", startDateStr)
-            .lte("request_date", endDateStr);
-
-          const maintenanceRevenue =
-            maintenance?.reduce(
-              (sum: number, m: any) => sum + (m.cost || 0),
-              0
-            ) || 0;
-
-          // المصروفات
-          const { data: expenses } = await (supabase as any)
-            .from("expenses")
-            .select("amount, expense_date")
-            .gte("expense_date", startDateStr)
-            .lte("expense_date", endDateStr);
-
-          const totalExpenses =
-            expenses?.reduce(
-              (sum: number, e: any) => sum + (e.amount || 0),
-              0
-            ) || 0;
-
-          const netProfit = rentalRevenue + maintenanceRevenue - totalExpenses;
-
-          setFinancialStats({
-            rentalRevenue,
-            maintenanceRevenue,
-            totalExpenses,
-            netProfit,
-          });
-        } else {
-          // جلب البيانات من IndexedDB
+        {
+          // أوفلاين بالكامل: جلب البيانات من IndexedDB فقط
           const [equipment, customers, rentals, maintenance, expenses] =
             await Promise.all([
               getAllFromLocal("equipment"),

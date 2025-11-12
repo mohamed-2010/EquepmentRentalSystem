@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import RentalInvoice from "./pages/RentalInvoice";
 import RentalContract from "./pages/RentalContract";
 import ComprehensiveReport from "./pages/ComprehensiveReport";
+import Backup from "./pages/Backup";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,7 +45,6 @@ const App = () => (
         <Toaster />
         <Sonner />
         {(() => {
-          // استخدم HashRouter دائماً لتفادي مشاكل 404 عند التحديث على الاستضافات الثابتة
           const Router = HashRouter;
           return (
             <Router>
@@ -155,6 +155,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Branches />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/backup"
+                  element={
+                    <ProtectedRoute>
+                      <Backup />
                     </ProtectedRoute>
                   }
                 />

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,8 +36,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineCustomers } from "@/hooks/useOfflineCustomers";
-import { useOfflineSync } from "@/hooks/useOfflineSync";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getAllFromLocal } from "@/lib/offline/db";
 
 export default function Customers() {
@@ -56,60 +53,25 @@ export default function Customers() {
   const { toast } = useToast();
   const { customers, isLoading, addCustomer, updateCustomer, deleteCustomer } =
     useOfflineCustomers(searchQuery);
-  const { updatePendingCount } = useOfflineSync();
-  const isOnline = useOnlineStatus();
 
   const { data: userRole } = useQuery({
-    queryKey: ["userRole", isOnline],
+    queryKey: ["userRole"],
     queryFn: async () => {
-      if (!isOnline) {
-        // حاول استخدام الكاش مباشرة في وضع Offline
-        const sessionStr = sessionStorage.getItem("offline_session");
-        if (sessionStr) {
-          try {
-            const sessionUser = JSON.parse(sessionStr);
-            if (sessionUser?.user_metadata?.branch_id) {
-              return {
-                role: sessionUser.user_metadata.role,
-                branch_id: sessionUser.user_metadata.branch_id,
-              };
-            }
-          } catch {}
+      const cachedRole = localStorage.getItem("user_role");
+      if (cachedRole) {
+        try {
+          return JSON.parse(cachedRole);
+        } catch {
+          return {
+            role: cachedRole,
+            branch_id: localStorage.getItem("user_branch_id"),
+          };
         }
-
-        const cachedRole = localStorage.getItem("user_role");
-        if (cachedRole) {
-          try {
-            const parsed = JSON.parse(cachedRole);
-            if (parsed?.branch_id) return parsed;
-          } catch {}
-        }
-        return null;
       }
-
-      // Online: احصل على المستخدم والدور
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role, branch_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (data?.branch_id) {
-        localStorage.setItem("user_branch_id", data.branch_id);
-      }
-      if (data) {
-        localStorage.setItem("user_role", JSON.stringify(data));
-      }
-      return data;
+      return null;
     },
-    enabled: true,
-    retry: false,
-    staleTime: isOnline ? 0 : Infinity,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,34 +131,13 @@ export default function Customers() {
               notes: "",
             });
             toast({ title: "تم الحفظ", description: "تم إضافة العميل بنجاح" });
-            await updatePendingCount();
+            // Offline-only: no pending sync update
             return;
           }
         }
 
         // If online and admin, pick first remote branch if local is empty
-        if (isOnline && isAdmin) {
-          const { data: branches } = await supabase
-            .from("branches")
-            .select("id")
-            .limit(1);
-          if (branches && branches.length > 0) {
-            const chosenId = branches[0].id as string;
-            await addCustomer({ ...formData, branch_id: chosenId });
-            setIsDialogOpen(false);
-            setFormData({
-              full_name: "",
-              phone: "",
-              id_number: "",
-              id_source: "",
-              address: "",
-              notes: "",
-            });
-            toast({ title: "تم الحفظ", description: "تم إضافة العميل بنجاح" });
-            await updatePendingCount();
-            return;
-          }
-        }
+        // Online fetch removed in offline-only mode
       } catch {}
 
       toast({
@@ -229,7 +170,7 @@ export default function Customers() {
         description: "تم إضافة العميل بنجاح",
       });
 
-      await updatePendingCount();
+      // Offline-only: no pending sync update
     } catch (error) {
       toast({
         title: "خطأ",
@@ -477,11 +418,6 @@ export default function Customers() {
                           <span className="text-muted-foreground">📍</span>
                           <span>{customer.address}</span>
                         </div>
-                      )}
-                      {!customer.synced && (
-                        <Badge variant="secondary" className="text-xs">
-                          في انتظار المزامنة
-                        </Badge>
                       )}
                       {customer.notes && (
                         <p className="text-xs text-muted-foreground mt-2 line-clamp-2">

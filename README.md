@@ -1,74 +1,80 @@
-# Welcome to your Lovable project
+# نظام إدارة إيجارات المعدات (أوفلاين كامل)
 
-## Project info
+هذا النظام يعمل الآن بالكامل بوضع أوفلاين (Offline-Only) بدون أي اتصال بخادم خارجي.
+جميع البيانات تُخزن محلياً في IndexedDB داخل المتصفح/تطبيق Electron.
 
-**URL**: https://lovable.dev/projects/8191012b-30cc-4071-9291-cfa2a5429aca
+## المزايا الحالية
 
-## How can I edit this code?
+- إدارة العملاء، المعدات، الفروع، الإيجارات اليومية والشهرية.
+- عقود وفواتير قابلة للطباعة.
+- تقرير شامل مالي وزمني.
+- إدارة الصيانة والمصروفات.
+- بحث سريع في الإيجارات.
+- دعم مبلغ التأمين (الوديعة) داخل العقد والفاتورة.
+- لا يتطلب إنترنت إطلاقاً بعد التشغيل.
 
-There are several ways of editing your application.
+## التقنيات المستخدمة
 
-**Use Lovable**
+- React 18 + TypeScript
+- Vite
+- Tailwind CSS + shadcn-ui
+- IndexedDB عبر مكتبة `idb`
+- date-fns (التنسيق باللغة العربية)
+- Electron (للتعبئة كتطبيق سطح مكتب)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8191012b-30cc-4071-9291-cfa2a5429aca) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## التشغيل محلياً
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+git clone <REPO_URL>
+cd EquepmentRentalSystem
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+يفتح التطبيق على عنوان محلي (مثلاً: http://localhost:5173) ويمكن تعبئته كتطبيق سطح مكتب عبر:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+npm run electron:dev
+```
 
-**Use GitHub Codespaces**
+## البناء للإنتاج
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```sh
+npm run build
+```
 
-## What technologies are used for this project?
+سيتم إنشاء الملفات في مجلد `dist/` ويمكن استخدام أوامر البناء لـ Electron:
 
-This project is built with:
+```sh
+npm run electron:build:win
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## بنية البيانات (مختصر)
 
-## How can I deploy this project?
+- IndexedDB يخزن الجداول: customers, equipment, branches, rentals, rental_items, maintenance_requests, expenses.
+- كل سجل يحتوي حقول `created_at`, `updated_at` و `synced` (حالياً دائماً أوفلاين: القيمة لا تُستخدم).
 
-Simply open [Lovable](https://lovable.dev/projects/8191012b-30cc-4071-9291-cfa2a5429aca) and click on Share -> Publish.
+## استخدام النظام
 
-## Can I connect a custom domain to my Lovable project?
+1. سجّل مستخدم (أو أدمن) محلياً.
+2. أنشئ فرع من صفحة الإعداد `Setup` إذا لم يوجد.
+3. أضف معدات وعملاء.
+4. أنشئ عقد إيجار ومن ثم اطبع العقد أو الفاتورة مباشرة.
+5. تابع الصيانة والمصروفات والتقارير الشاملة.
 
-Yes, you can!
+## وضع الأوفلاين
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+تم حذف/تعطيل كل ما يتعلق بـ Supabase والمزامنة. أي بقايا مفاتيح تخزين قديمة تم توحيدها إلى `offline.*`.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-# EquepmentRentalSystem
+## ملاحظات لاحقة محتملة
+
+- يمكن إضافة آلية تصدير/استيراد JSON للنسخ الاحتياطي.
+- يمكن إضافة فحص تناسق داخلي دوري للجداول.
+
+## الترخيص
+
+المشروع داخلي؛ حدّد ترخيصاً إن رغبت.
+
+---
+
+تم التحويل إلى أوفلاين كامل بنجاح.

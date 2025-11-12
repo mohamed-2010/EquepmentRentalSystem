@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getAllFromLocal } from "@/lib/offline/db";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useOfflineRentals } from "@/hooks/useOfflineRentals";
+import { getOfflineUser } from "@/lib/offline/offlineAuth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +81,7 @@ export default function DailyRentals() {
     { equipmentId: "", quantity: 1, notes: "" },
   ]);
   const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -97,56 +99,30 @@ export default function DailyRentals() {
   } = useOfflineRentals();
 
   const { data: userRole } = useQuery({
-    queryKey: ["userRole", isOnline],
+    queryKey: ["userRole", "offline"],
     queryFn: async () => {
-      let user;
-      if (isOnline) {
-        const {
-          data: { user: onlineUser },
-        } = await supabase.auth.getUser();
-        user = onlineUser;
-      } else {
-        const cachedUser = localStorage.getItem("supabase.auth.user");
-        if (cachedUser) {
-          user = JSON.parse(cachedUser);
-        } else {
-          const sessionData = sessionStorage.getItem("supabase.auth.token");
-          if (sessionData) {
-            const session = JSON.parse(sessionData);
-            user = session.user;
-          }
-        }
+      // أوفلاين: اعتمد فقط على التخزين المحلي
+      const cachedRole = localStorage.getItem("user_role");
+      if (cachedRole) return JSON.parse(cachedRole);
+      const offline = getOfflineUser();
+      if (offline && (offline.role || offline.branch_id)) {
+        const composed = { role: offline.role, branch_id: offline.branch_id };
+        localStorage.setItem("user_role", JSON.stringify(composed));
+        return composed as any;
       }
-
-      if (!user) return null;
-
-      if (isOnline) {
-        const { data } = await supabase
-          .from("user_roles")
-          .select("role, branch_id")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (data) {
-          localStorage.setItem("user_role", JSON.stringify(data));
-        }
-        return data;
-      } else {
-        const cachedRole = localStorage.getItem("user_role");
-        return cachedRole ? JSON.parse(cachedRole) : null;
-      }
+      return null;
     },
-    staleTime: isOnline ? 0 : Infinity,
-    refetchOnWindowFocus: isOnline,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 
   const { data: branches } = useQuery({
     queryKey: ["branches", userRole?.role],
     queryFn: async () => {
       if (userRole?.role !== "admin") return [];
-      const { data } = await supabase.from("branches").select("*");
-      return data || [];
+      // Offline-only: fetch branches from IndexedDB local store
+      const localBranches = await getAllFromLocal("branches");
+      return localBranches || [];
     },
     enabled: userRole?.role === "admin",
   });
@@ -190,6 +166,7 @@ export default function DailyRentals() {
     expected_end_date: "",
     notes: "",
     deposit_amount: 0,
+    discount_amount: 0,
   });
   const [editEquipment, setEditEquipment] = useState<RentalEquipment[]>([]);
 
@@ -202,6 +179,7 @@ export default function DailyRentals() {
         : "",
       notes: rental.notes || "",
       deposit_amount: rental.deposit_amount || 0,
+      discount_amount: rental.discount_amount || 0,
     });
 
     // تحميل المعدات الحالية
@@ -228,6 +206,7 @@ export default function DailyRentals() {
           : null,
         notes: editRentalValues.notes,
         deposit_amount: editRentalValues.deposit_amount,
+        discount_amount: editRentalValues.discount_amount,
       } as any);
 
       // تحديث المعدات (يمكن تطوير هذا لاحقاً لإضافة/حذف معدات)
@@ -334,34 +313,26 @@ export default function DailyRentals() {
         throw new Error("لم يتم تحديد الفرع");
       }
 
-      await createRental(
+      const newRental = await createRental(
         {
           customer_id: selectedCustomer,
           branch_id: branchId,
           rental_type: "daily",
+          status: "active",
           is_fixed_duration: isFixedDuration,
           start_date: startDate,
           expected_end_date: isFixedDuration ? expectedEndDate : undefined,
           deposit_amount: depositAmount,
+          discount_amount: discountAmount,
         },
         validEquipment
       );
 
-      // الانتقال مباشرةً لعرض العقد للطباعة
-      // استخدم أول إيجار تم إنشاؤه (createRental يعيد الإيجار الجديد)
-      try {
-        const latestRentalId = rentals[0]?.id || null;
-        // إفتراضيًا: لو لم نستطع الحصول على معرف من الحالة القديمة، انتظر تحديث الحالة القصير
+      // الانتقال مباشرةً لعرض العقد للطباعة باستخدام المعرف المعاد
+      if (newRental && newRental.id) {
         setTimeout(() => {
-          const idToUse =
-            latestRentalId ||
-            rentals.find((r) => r.customer_id === selectedCustomer)?.id;
-          if (idToUse) {
-            navigate(`/rentals/${idToUse}/contract`);
-          }
-        }, 150);
-      } catch (e) {
-        console.warn("Failed auto navigate to contract", e);
+          navigate(`/rentals/${newRental.id}/contract`);
+        }, 200);
       }
 
       toast({
@@ -376,6 +347,7 @@ export default function DailyRentals() {
       setStartDate(new Date().toISOString().split("T")[0]);
       setExpectedEndDate("");
       setDepositAmount(0);
+      setDiscountAmount(0);
       setRentalEquipment([{ equipmentId: "", quantity: 1, notes: "" }]);
     } catch (error: any) {
       toast({
@@ -561,6 +533,22 @@ export default function DailyRentals() {
                     value={depositAmount}
                     onChange={(e) =>
                       setDepositAmount(parseFloat(e.target.value) || 0)
+                    }
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* حقل الخصم */}
+                <div className="space-y-2">
+                  <Label htmlFor="discount_amount">الخصم (ريال)</Label>
+                  <Input
+                    id="discount_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discountAmount}
+                    onChange={(e) =>
+                      setDiscountAmount(parseFloat(e.target.value) || 0)
                     }
                     placeholder="0"
                   />
@@ -1013,6 +1001,25 @@ export default function DailyRentals() {
                   setEditRentalValues((v) => ({
                     ...v,
                     deposit_amount: parseFloat(e.target.value) || 0,
+                  }))
+                }
+                placeholder="0"
+              />
+            </div>
+
+            {/* حقل الخصم */}
+            <div className="space-y-2">
+              <Label htmlFor="e-discount">الخصم (ريال)</Label>
+              <Input
+                id="e-discount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editRentalValues.discount_amount}
+                onChange={(e) =>
+                  setEditRentalValues((v) => ({
+                    ...v,
+                    discount_amount: parseFloat(e.target.value) || 0,
                   }))
                 }
                 placeholder="0"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+// Offline-only: Supabase disabled
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,9 +20,16 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import {
   saveOfflineAuth,
   saveOfflineUser,
-  verifyOfflineAuth,
   getOfflineUser,
 } from "@/lib/offline/offlineAuth";
+
+// الحساب الثابت المبرمج في الكود
+const DEFAULT_ACCOUNT = {
+  email: "admin@rentalsystem.com",
+  password: "admin123",
+  fullName: "المدير العام",
+  role: "admin",
+};
 
 const authSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صحيح").max(255),
@@ -30,19 +37,12 @@ const authSchema = z.object({
     .string()
     .min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل")
     .max(100),
-  fullName: z
-    .string()
-    .min(3, "الاسم يجب أن يكون 3 أحرف على الأقل")
-    .max(100)
-    .optional(),
 });
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -50,6 +50,23 @@ const Auth = () => {
 
   // احصل على الصفحة المطلوبة من state أو استخدم /dashboard كافتراضي
   const from = (location.state as any)?.from?.pathname || "/dashboard";
+
+  // تهيئة الحساب الافتراضي عند تحميل الصفحة
+  useEffect(() => {
+    const offlineUser = getOfflineUser();
+    if (!offlineUser) {
+      // إنشاء الحساب الافتراضي تلقائياً
+      const defaultUser = {
+        id: crypto.randomUUID(),
+        email: DEFAULT_ACCOUNT.email,
+        full_name: DEFAULT_ACCOUNT.fullName,
+        role: DEFAULT_ACCOUNT.role,
+        branch_id: undefined, // سيتم تحديده في صفحة Setup
+      } as any;
+      saveOfflineUser(defaultUser);
+      saveOfflineAuth(DEFAULT_ACCOUNT.email, DEFAULT_ACCOUNT.password);
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -62,9 +79,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const data = isLogin
-        ? { email, password }
-        : { email, password, fullName };
+      const data = { email, password };
 
       const validation = authSchema.safeParse(data);
       if (!validation.success) {
@@ -73,146 +88,46 @@ const Auth = () => {
         return;
       }
 
-      if (isLogin) {
-        // محاولة تسجيل الدخول
-        if (isOnline) {
-          // تسجيل دخول عادي عبر الإنترنت
-          const { error, data: authData } =
-            await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
+      // التحقق من الحساب الثابت
+      if (
+        email.toLowerCase() !== DEFAULT_ACCOUNT.email.toLowerCase() ||
+        password !== DEFAULT_ACCOUNT.password
+      ) {
+        toast.error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+        setLoading(false);
+        return;
+      }
 
-          if (error) {
-            // إذا فشل، جرب offline
-            if (verifyOfflineAuth(email, password)) {
-              toast.success("تم تسجيل الدخول (وضع Offline)");
-              navigate(from, { replace: true });
-            } else {
-              if (error.message.includes("Invalid login credentials")) {
-                toast.error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
-              } else {
-                toast.error(error.message);
-              }
-            }
-            return;
-          }
+      // الحصول على بيانات المستخدم المحفوظة
+      const offlineUser = getOfflineUser();
+      if (!offlineUser) {
+        toast.error("خطأ في تحميل بيانات المستخدم");
+        setLoading(false);
+        return;
+      }
 
-          // حفظ بيانات التسجيل للاستخدام offline لاحقاً
-          saveOfflineAuth(email, password);
+      // حفظ جلسة أوفلاين
+      const mockUser = {
+        id: offlineUser.id,
+        email: offlineUser.email?.toLowerCase(),
+        app_metadata: {},
+        aud: "authenticated",
+        created_at: new Date().toISOString(),
+        user_metadata: {
+          full_name: offlineUser.full_name,
+          role: offlineUser.role,
+          branch_id: offlineUser.branch_id,
+        },
+      };
+      sessionStorage.setItem("offline_session", JSON.stringify(mockUser));
 
-          // حفظ بيانات المستخدم
-          if (authData.user) {
-            const { data: userRole } = await supabase
-              .from("user_roles")
-              .select("role, branch_id")
-              .eq("user_id", authData.user.id)
-              .limit(1)
-              .maybeSingle();
-
-            const userData = {
-              id: authData.user.id,
-              email: authData.user.email!,
-              full_name: authData.user.user_metadata?.full_name,
-              role: userRole?.role,
-              branch_id: userRole?.branch_id,
-            };
-
-            saveOfflineUser(userData);
-
-            // حفظ في sessionStorage أيضاً للاستخدام الفوري
-            const sessionUser = {
-              id: authData.user.id,
-              email: authData.user.email!,
-              app_metadata: {},
-              aud: "authenticated",
-              created_at: authData.user.created_at,
-              user_metadata: {
-                full_name: authData.user.user_metadata?.full_name,
-                role: userRole?.role,
-                branch_id: userRole?.branch_id,
-              },
-            };
-            sessionStorage.setItem(
-              "offline_session",
-              JSON.stringify(sessionUser)
-            );
-          }
-
-          toast.success("تم تسجيل الدخول بنجاح");
-          navigate(from, { replace: true });
-        } else {
-          // وضع offline - التحقق من البيانات المحفوظة
-          const ok = verifyOfflineAuth(email, password);
-          const offlineUser = getOfflineUser();
-          if (ok && offlineUser) {
-            const mockUser = {
-              id: offlineUser.id,
-              email: (offlineUser.email || email)?.toLowerCase(),
-              app_metadata: {},
-              aud: "authenticated",
-              created_at: new Date().toISOString(),
-              user_metadata: {
-                full_name: offlineUser.full_name,
-                role: offlineUser.role,
-                branch_id: offlineUser.branch_id,
-              },
-            };
-            sessionStorage.setItem("offline_session", JSON.stringify(mockUser));
-            toast.success("تم تسجيل الدخول (وضع Offline)");
-            window.location.href = from;
-          } else if (
-            offlineUser &&
-            offlineUser.email &&
-            offlineUser.email.toLowerCase() === email.toLowerCase()
-          ) {
-            // فولباك اختياري: سماح بالدخول بالحساب المحفوظ حتى لو كلمة المرور غير متاحة
-            const mockUser = {
-              id: offlineUser.id,
-              email: offlineUser.email.toLowerCase(),
-              app_metadata: {},
-              aud: "authenticated",
-              created_at: new Date().toISOString(),
-              user_metadata: {
-                full_name: offlineUser.full_name,
-                role: offlineUser.role,
-                branch_id: offlineUser.branch_id,
-              },
-            };
-            sessionStorage.setItem("offline_session", JSON.stringify(mockUser));
-            toast.info(
-              "تم تسجيل الدخول باستخدام الحساب المحفوظ (بدون تحقق كلمة المرور)"
-            );
-            window.location.href = from;
-          } else {
-            toast.error(
-              "لا يمكن تسجيل الدخول بدون إنترنت. يجب تسجيل الدخول مرة واحدة عبر الإنترنت أولاً."
-            );
-          }
-        }
+      toast.success("تم تسجيل الدخول بنجاح");
+      
+      // إذا لم يكن هناك فرع، وجّه إلى الإعداد
+      if (!offlineUser.branch_id) {
+        navigate("/setup", { replace: true });
       } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}${from}`,
-            data: {
-              full_name: fullName,
-            },
-          },
-        });
-
-        if (error) {
-          if (error.message.includes("already registered")) {
-            toast.error("هذا البريد الإلكتروني مسجل مسبقاً");
-          } else {
-            toast.error(error.message);
-          }
-          return;
-        }
-
-        toast.success("تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن");
-        setIsLogin(true);
+        navigate(from, { replace: true });
       }
     } catch (error) {
       toast.error("حدث خطأ ما، يرجى المحاولة مرة أخرى");
@@ -227,9 +142,7 @@ const Auth = () => {
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
           <div className="bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
             <WifiOff className="h-4 w-4" />
-            <span>
-              وضع Offline - يمكنك تسجيل الدخول باستخدام حساب مسجل مسبقاً
-            </span>
+            <span>وضع Offline</span>
           </div>
         </div>
       )}
@@ -245,32 +158,18 @@ const Auth = () => {
               نظام إدارة الإيجار
             </CardTitle>
             <CardDescription className="text-base mt-2">
-              {isLogin ? "مرحباً بك! سجل دخولك للمتابعة" : "إنشاء حساب جديد"}
+              مرحباً بك! سجل دخولك للمتابعة
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">الاسم الكامل</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="أدخل اسمك الكامل"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required={!isLogin}
-                />
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="email">البريد الإلكتروني</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="example@domain.com"
+                placeholder="admin@rentalsystem.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -295,22 +194,15 @@ const Auth = () => {
                   <Loader2 className="ml-2 h-4 w-4 animate-spin" />
                   جاري التحميل...
                 </>
-              ) : isLogin ? (
-                "تسجيل الدخول"
               ) : (
-                "إنشاء حساب"
+                "تسجيل الدخول"
               )}
             </Button>
 
-            <div className="text-center">
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-primary"
-              >
-                {isLogin ? "ليس لديك حساب؟ سجل الآن" : "لديك حساب؟ سجل دخولك"}
-              </Button>
+            <div className="text-center text-sm text-muted-foreground mt-4 p-3 bg-muted/50 rounded-lg">
+              <p className="font-semibold mb-1">بيانات الدخول الافتراضية:</p>
+              <p>البريد: {DEFAULT_ACCOUNT.email}</p>
+              <p>الباسورد: {DEFAULT_ACCOUNT.password}</p>
             </div>
           </form>
         </CardContent>

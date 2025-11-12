@@ -55,20 +55,16 @@ export default function RentalContract() {
 
       setItems(enrichedItems);
 
-      // branch
-      if (r?.branches) {
-        setBranch(r.branches as BranchData);
-      } else if (r?.branch_id) {
+      // branch - Always load from IndexedDB to get complete data
+      if (r?.branch_id) {
         const bs = await getAllFromLocal("branches");
         const b =
           (bs || []).find((x: BranchData) => x.id === r.branch_id) || null;
         setBranch(b);
       }
 
-      // customer
-      if (r?.customers) {
-        setCustomer(r.customers as CustomerData);
-      } else if (r?.customer_id) {
+      // customer - Always load from IndexedDB to get complete data
+      if (r?.customer_id) {
         const cs = await getAllFromLocal("customers");
         const c =
           (cs || []).find((x: CustomerData) => x.id === r.customer_id) || null;
@@ -213,7 +209,7 @@ export default function RentalContract() {
                 رقم الهوية / الإقامة
               </div>
               <div className="border border-gray-800 p-2">
-                {(customer as any)?.id_number || "-"}
+                {customer?.id_number || rental.customers?.id_number || "-"}
               </div>
             </div>
             {/* <div className="grid grid-cols-2 gap-2 text-sm">
@@ -232,7 +228,7 @@ export default function RentalContract() {
                 الجـــوال
               </div>
               <div className="border border-gray-800 p-2">
-                {(customer as any)?.phone || "-"}
+                {customer?.phone || rental.customers?.phone || "-"}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -240,7 +236,7 @@ export default function RentalContract() {
                 مصدر الهوية
               </div>
               <div className="border border-gray-800 p-2">
-                {(customer as any)?.id_source || "-"}
+                {customer?.id_source || rental.customers?.id_source || "-"}
               </div>
             </div>
             {/* <div className="grid grid-cols-2 gap-2 text-sm">

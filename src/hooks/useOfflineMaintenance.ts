@@ -1,13 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { useOnlineStatus } from "./useOnlineStatus";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 import {
   saveToLocal,
   getAllFromLocal,
   deleteFromLocal,
+  getFromLocal,
 } from "@/lib/offline/db";
-import { addToQueue, getQueue } from "@/lib/offline/queue";
-import { syncWithBackend } from "@/lib/offline/sync";
 import { v4 as uuidv4 } from "uuid";
 
 export interface MaintenanceRequestData {
@@ -33,24 +30,10 @@ export interface MaintenanceRequestData {
 export function useOfflineMaintenance() {
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isOnline = useOnlineStatus();
-  const previousOnlineStatus = useRef(isOnline);
 
   useEffect(() => {
     loadMaintenanceRequests();
   }, []);
-
-  useEffect(() => {
-    const wasOffline = !previousOnlineStatus.current;
-    const isNowOnline = isOnline;
-
-    if (wasOffline && isNowOnline) {
-      console.log("🌐 Connection restored, reloading maintenance requests...");
-      loadMaintenanceRequests();
-    }
-
-    previousOnlineStatus.current = isOnline;
-  }, [isOnline]);
 
   const loadMaintenanceRequests = async () => {
     setIsLoading(true);
@@ -58,62 +41,6 @@ export function useOfflineMaintenance() {
       // تحميل من المحلي أولاً للعرض الفوري
       await loadMaintenanceRequestsFromLocal();
       setIsLoading(false);
-
-      // ثم تحديث من السيرفر إذا كان متصل
-      if (isOnline) {
-        try {
-          // مزامنة البيانات المعلقة أولاً
-          await syncWithBackend();
-
-          const { data, error } = await (supabase as any)
-            .from("maintenance_requests")
-            .select(
-              `
-              *,
-              customers(full_name, phone),
-              equipment(name, code),
-              branches(name)
-            `
-            )
-            .order("created_at", { ascending: false });
-
-          if (!error && data) {
-            // استبعاد الصفوف المعلقة للحذف من إعادة الإضافة
-            let filteredServer = data;
-            try {
-              const q = await getQueue();
-              const deleteIds = new Set(
-                q
-                  .filter(
-                    (qi) =>
-                      qi.operation === "delete" &&
-                      qi.table === "maintenance_requests"
-                  )
-                  .map((qi) => qi.data?.id)
-              );
-              if (deleteIds.size > 0) {
-                filteredServer = filteredServer.filter(
-                  (r: any) => !deleteIds.has(r.id)
-                );
-              }
-            } catch {}
-
-            // حفظ البيانات من السيرفر محلياً
-            for (const request of filteredServer) {
-              await saveToLocal("maintenance_requests" as any, {
-                ...request,
-                synced: true,
-              });
-            }
-            setMaintenanceRequests(filteredServer);
-          }
-        } catch (error) {
-          console.error(
-            "Error fetching maintenance requests from server:",
-            error
-          );
-        }
-      }
     } catch (error) {
       console.error("Error loading maintenance requests:", error);
       setIsLoading(false);
@@ -154,20 +81,21 @@ export function useOfflineMaintenance() {
   ) => {
     const requestId = uuidv4();
 
-    let user;
-    if (isOnline) {
-      const {
-        data: { user: onlineUser },
-      } = await supabase.auth.getUser();
-      user = onlineUser;
-    } else {
-      const cachedUser = localStorage.getItem("supabase.auth.user");
+    // استرجاع المستخدم أوفلاين فقط
+    let user: any = null;
+    try {
+      const offlineSession = sessionStorage.getItem("offline_session");
+      if (offlineSession) user = JSON.parse(offlineSession);
+    } catch {}
+    if (!user) {
+      const cachedUser = localStorage.getItem("offline.user");
       if (cachedUser) {
-        user = JSON.parse(cachedUser);
+        try {
+          user = JSON.parse(cachedUser);
+        } catch {}
       }
     }
-
-    if (!user) throw new Error("غير مسجل الدخول");
+    if (!user) throw new Error("غير مسجل الدخول (وضع أوفلاين)");
 
     // حل مشكلة branch_id للـ Admin
     const resolveBranchId = async (): Promise<string | null> => {
@@ -199,18 +127,7 @@ export function useOfflineMaintenance() {
         }
       } catch {}
 
-      // 4) محاولة من Supabase (online)
-      if (isOnline) {
-        try {
-          const { data: branches } = await supabase
-            .from("branches")
-            .select("id")
-            .limit(1);
-          if (branches && branches.length > 0) {
-            return branches[0].id as string;
-          }
-        } catch {}
-      }
+      // الوضع أوفلاين: لا محاولة شبكة
 
       return null;
     };
@@ -247,93 +164,49 @@ export function useOfflineMaintenance() {
 
     setMaintenanceRequests((prev) => [enrichedRequest, ...prev]);
 
-    if (isOnline) {
-      try {
-        const { data: savedData, error } = await (supabase as any)
-          .from("maintenance_requests")
-          .insert({
-            id: newRequest.id,
-            customer_id: newRequest.customer_id,
-            equipment_id: newRequest.equipment_id,
-            branch_id: newRequest.branch_id,
-            created_by: newRequest.created_by,
-            request_date: newRequest.request_date,
-            description: newRequest.description,
-            status: newRequest.status,
-            cost: newRequest.cost,
-            notes: newRequest.notes,
-          })
-          .select()
-          .single();
-
-        if (!error && savedData) {
-          // حفظ البيانات من السيرفر محلياً مع علامة synced
-          await saveToLocal("maintenance_requests" as any, {
-            ...savedData,
-            synced: true,
-          });
-          setMaintenanceRequests((prev) =>
-            prev.map((r: any) =>
-              r.id === savedData.id
-                ? {
-                    ...r,
-                    ...savedData,
-                    synced: true,
-                    customers: r.customers,
-                    equipment: r.equipment,
-                  }
-                : r
-            )
-          );
-        } else {
-          // إضافة إلى الـ queue في حالة الفشل
-          await addToQueue("maintenance_requests" as any, "insert", newRequest);
-        }
-      } catch (err) {
-        console.error("Error syncing maintenance request:", err);
-        await addToQueue("maintenance_requests" as any, "insert", newRequest);
-      }
-    } else {
-      // حفظ في الـ queue للمزامنة لاحقاً
-      await addToQueue("maintenance_requests" as any, "insert", newRequest);
-    }
-
-    return newRequest;
+    // أوفلاين فقط: لا مزامنة شبكة
+    return enrichedRequest;
   };
 
   const updateMaintenanceRequest = async (
     id: string,
     updates: Partial<MaintenanceRequestData>
   ) => {
-    const existing = maintenanceRequests.find((r: any) => r.id === id);
-    if (!existing) return null;
+    // اجلب الطلب الحالي من المحلي
+    const current = (await getFromLocal(
+      "maintenance_requests" as any,
+      id
+    )) as any;
+    if (!current) throw new Error("طلب الصيانة غير موجود");
 
     const updated = {
-      ...existing,
+      ...current,
       ...updates,
       updated_at: new Date().toISOString(),
       synced: false,
     };
 
     await saveToLocal("maintenance_requests" as any, updated);
-    await addToQueue("maintenance_requests" as any, "update", updated);
+
+    // إعادة الإثراء لبيانات العرض
+    const customers = await getAllFromLocal("customers");
+    const equipment = await getAllFromLocal("equipment");
+    const customer = customers?.find((c: any) => c.id === updated.customer_id);
+    const equip = equipment?.find((e: any) => e.id === updated.equipment_id);
+
+    const enriched = {
+      ...updated,
+      customers: customer
+        ? { full_name: customer.full_name, phone: customer.phone }
+        : null,
+      equipment: equip ? { name: equip.name, code: equip.code } : null,
+    };
 
     setMaintenanceRequests((prev) =>
-      prev.map((r) => (r.id === id ? updated : r))
+      prev.map((r) => (r.id === id ? enriched : r))
     );
 
-    if (isOnline) {
-      try {
-        await (supabase as any)
-          .from("maintenance_requests")
-          .update(updates as any)
-          .eq("id", id);
-      } catch (error) {
-        console.error("Error syncing maintenance request update:", error);
-      }
-    }
-
-    return updated;
+    return enriched;
   };
 
   return {

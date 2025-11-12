@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { getAllFromLocal } from "@/lib/offline/db";
-import { supabase } from "@/integrations/supabase/client";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Printer } from "lucide-react";
 import { format } from "date-fns";
@@ -14,7 +12,6 @@ export default function ComprehensiveReport() {
   const [searchParams] = useSearchParams();
   const startDate = searchParams.get("start") || "";
   const endDate = searchParams.get("end") || "";
-  const isOnline = useOnlineStatus();
 
   const [rentals, setRentals] = useState<AnyRecord[]>([]);
   const [rentalItems, setRentalItems] = useState<AnyRecord[]>([]);
@@ -24,219 +21,134 @@ export default function ComprehensiveReport() {
   const [branch, setBranch] = useState<AnyRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [startDate, endDate]);
-
+  // تحميل البيانات من IndexedDB (وضع أوفلاين كامل)
   const loadData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      console.log("[Report] Loading data...", { isOnline, startDate, endDate });
+      console.log("[Report] Loading offline data...", { startDate, endDate });
+      const [
+        allRentals,
+        allRentalItems,
+        allEquipment,
+        allExpenses,
+        allMaintenance,
+        branches,
+        customers,
+      ] = await Promise.all([
+        getAllFromLocal("rentals"),
+        getAllFromLocal("rental_items"),
+        getAllFromLocal("equipment"),
+        getAllFromLocal("expenses"),
+        getAllFromLocal("maintenance_requests"),
+        getAllFromLocal("branches"),
+        getAllFromLocal("customers"),
+      ]);
 
-      if (isOnline) {
-        // تحميل من Supabase عندما يكون متصل
-        console.log("[Report] Loading from Supabase...");
+      console.log("[Report] Raw counts", {
+        rentals: allRentals.length,
+        rentalItems: allRentalItems.length,
+        equipment: allEquipment.length,
+        expenses: allExpenses.length,
+        maintenance: allMaintenance.length,
+        customers: customers.length,
+        branches: branches.length,
+      });
 
-        // تحميل المعدات
-        const { data: equipmentData } = await supabase
-          .from("equipment")
-          .select("*");
-        setEquipment(equipmentData || []);
-
-        // تحميل الإيجارات مع العملاء
-        const { data: rentalsData } = await supabase
-          .from("rentals")
-          .select(
-            `
-            *,
-            customers(full_name, phone)
-          `
-          )
-          .gte("start_date", startDate)
-          .lte("start_date", endDate)
-          .order("start_date", { ascending: false });
-
-        setRentals(rentalsData || []);
-
-        // تحميل rental_items مع المعدات
-        const { data: itemsData } = await supabase.from("rental_items").select(`
-            *,
-            equipment(name, code, daily_rate)
-          `);
-
-        setRentalItems(itemsData || []);
-
-        // تحميل المصروفات
-        const { data: expensesData } = await (supabase as any)
-          .from("expenses")
-          .select("*")
-          .gte("expense_date", startDate)
-          .lte("expense_date", endDate);
-
-        setExpenses(expensesData || []);
-
-        // تحميل الصيانة
-        const { data: maintenanceData } = await (supabase as any)
-          .from("maintenance_requests")
-          .select(
-            `
-            *,
-            equipment(name, code)
-          `
-          )
-          .gte("request_date", startDate)
-          .lte("request_date", endDate);
-
-        setMaintenance(maintenanceData || []);
-
-        // تحميل الفرع
-        const { data: branchData } = await supabase
-          .from("branches")
-          .select("*")
-          .limit(1)
-          .single();
-
-        if (branchData) setBranch(branchData);
-
-        console.log("[Report] Loaded from Supabase:", {
-          rentals: rentalsData?.length || 0,
-          equipment: equipmentData?.length || 0,
-          expenses: expensesData?.length || 0,
-          maintenance: maintenanceData?.length || 0,
-        });
-      } else {
-        // تحميل من IndexedDB عندما يكون offline
-        console.log("[Report] Loading from IndexedDB...");
-
-        const allRentals = await getAllFromLocal("rentals");
-        const allEquipment = await getAllFromLocal("equipment");
-        const allExpenses = await getAllFromLocal("expenses");
-        const allMaintenance = await getAllFromLocal("maintenance_requests");
-        const branches = await getAllFromLocal("branches");
-        const customers = await getAllFromLocal("customers");
-        const allRentalItems = await getAllFromLocal("rental_items");
-
-        console.log("[Report] Loaded from IndexedDB:", {
-          rentals: allRentals?.length || 0,
-          equipment: allEquipment?.length || 0,
-          expenses: allExpenses?.length || 0,
-          maintenance: allMaintenance?.length || 0,
-        });
-
-        // إثراء بيانات الإيجارات بمعلومات العملاء
-        const enrichedRentals = (allRentals || []).map((rental: any) => {
-          const customer = (customers || []).find(
-            (c: any) => c.id === rental.customer_id
-          );
-          return {
-            ...rental,
-            customers: customer || { full_name: "غير معروف" },
-          };
-        });
-
-        // إثراء بيانات الصيانة بمعلومات المعدات
-        const enrichedMaintenance = (allMaintenance || []).map((m: any) => {
-          const equip = (allEquipment || []).find(
-            (e: any) => e.id === m.equipment_id
-          );
-          return {
-            ...m,
-            equipment: equip || { name: "غير معروف" },
-          };
-        });
-
-        // إثراء rental_items بمعلومات المعدات
-        const enrichedItems = (allRentalItems || []).map((item: any) => {
-          const equip = (allEquipment || []).find(
-            (e: any) => e.id === item.equipment_id
-          );
-          return {
-            ...item,
-            equipment: equip || { name: "غير معروف", code: "-", daily_rate: 0 },
-          };
-        });
-        setRentalItems(enrichedItems);
-
-        // حساب المبلغ الإجمالي لكل إيجار
-        const rentalsWithTotal = enrichedRentals.map((rental: any) => {
-          const items = enrichedItems.filter(
-            (item: any) => item.rental_id === rental.id
-          );
-
-          let totalAmount = 0;
-          items.forEach((item: any) => {
-            const rate = item.equipment?.daily_rate || 0;
-            const quantity = item.quantity || 1;
-            // حساب عدد الأيام
-            const startDate = new Date(rental.start_date);
-            const endDate = item.return_date
-              ? new Date(item.return_date)
-              : rental.end_date
-              ? new Date(rental.end_date)
-              : new Date();
-            const days = Math.max(
-              1,
-              Math.ceil(
-                (endDate.getTime() - startDate.getTime()) /
-                  (1000 * 60 * 60 * 24)
-              )
-            );
-
-            totalAmount += rate * quantity * days;
-          });
-
-          return {
-            ...rental,
-            total_amount: totalAmount,
-          };
-        });
-
-        // فلترة البيانات حسب التاريخ
-        const filtered = {
-          rentals: filterByDate(
-            rentalsWithTotal,
-            startDate,
-            endDate,
-            "start_date"
-          ),
-          equipment: allEquipment || [],
-          expenses: filterByDate(
-            allExpenses || [],
-            startDate,
-            endDate,
-            "expense_date"
-          ),
-          maintenance: filterByDate(
-            enrichedMaintenance,
-            startDate,
-            endDate,
-            "request_date"
-          ),
+      // إثراء بيانات الإيجارات بمعلومات العملاء
+      const enrichedRentals = allRentals.map((rental: any) => {
+        const customer = customers.find(
+          (c: any) => c.id === rental.customer_id
+        );
+        return {
+          ...rental,
+          customers: customer || { full_name: "غير معروف" },
         };
+      });
 
-        console.log("[Report] Filtered data:", {
-          rentals: filtered.rentals.length,
-          equipment: filtered.equipment.length,
-          expenses: filtered.expenses.length,
-          maintenance: filtered.maintenance.length,
+      // إثراء بيانات الصيانة بمعلومات المعدات
+      const enrichedMaintenance = allMaintenance.map((m: any) => {
+        const equip = allEquipment.find((e: any) => e.id === m.equipment_id);
+        return {
+          ...m,
+          equipment: equip || { name: "غير معروف" },
+        };
+      });
+
+      // إثراء rental_items بمعلومات المعدات
+      const enrichedItems = allRentalItems.map((item: any) => {
+        const equip = allEquipment.find((e: any) => e.id === item.equipment_id);
+        return {
+          ...item,
+          equipment: equip || { name: "غير معروف", code: "-", daily_rate: 0 },
+        };
+      });
+      setRentalItems(enrichedItems);
+
+      // حساب المبلغ الإجمالي لكل إيجار
+      const rentalsWithTotal = enrichedRentals.map((rental: any) => {
+        const items = enrichedItems.filter(
+          (item: any) => item.rental_id === rental.id
+        );
+        let totalAmount = 0;
+        items.forEach((item: any) => {
+          const rate = item.equipment?.daily_rate || 0;
+          const quantity = item.quantity || 1;
+          const start = new Date(rental.start_date);
+          const end = item.return_date
+            ? new Date(item.return_date)
+            : rental.end_date
+            ? new Date(rental.end_date)
+            : new Date();
+          const days = Math.max(
+            1,
+            Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+          );
+          totalAmount += rate * quantity * days;
         });
+        return { ...rental, total_amount: totalAmount };
+      });
 
-        setRentals(filtered.rentals);
-        setEquipment(filtered.equipment);
-        setExpenses(filtered.expenses);
-        setMaintenance(filtered.maintenance);
+      // فلترة حسب التاريخ
+      const filtered = {
+        rentals: filterByDate(
+          rentalsWithTotal,
+          startDate,
+          endDate,
+          "start_date"
+        ),
+        equipment: allEquipment,
+        expenses: filterByDate(allExpenses, startDate, endDate, "expense_date"),
+        maintenance: filterByDate(
+          enrichedMaintenance,
+          startDate,
+          endDate,
+          "request_date"
+        ),
+      };
 
-        // تحميل بيانات الفرع
-        if (branches && branches.length > 0) {
-          setBranch(branches[0]);
-        }
-      }
+      console.log("[Report] Filtered data", {
+        rentals: filtered.rentals.length,
+        equipment: filtered.equipment.length,
+        expenses: filtered.expenses.length,
+        maintenance: filtered.maintenance.length,
+      });
+
+      setRentals(filtered.rentals);
+      setEquipment(filtered.equipment);
+      setExpenses(filtered.expenses);
+      setMaintenance(filtered.maintenance);
+      if (branches.length > 0) setBranch(branches[0]);
     } catch (error) {
-      console.error("[Report] Error loading data:", error);
+      console.error("[Report] Error loading offline data", error);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate]);
 
   const filterByDate = (
     data: AnyRecord[],

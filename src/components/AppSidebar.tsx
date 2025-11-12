@@ -9,6 +9,7 @@ import {
   DollarSign,
   Calendar,
   CalendarDays,
+  Cloud,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "الصيانة", url: "/maintenance", icon: Wrench },
   { title: "المصروفات", url: "/expenses", icon: DollarSign },
   { title: "الفروع", url: "/branches", icon: Building2 },
+  { title: "النسخ الاحتياطي", url: "/backup", icon: Cloud },
 ];
 
 export function AppSidebar() {

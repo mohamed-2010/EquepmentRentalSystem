@@ -62,20 +62,16 @@ export default function RentalInvoice() {
       console.log("[RentalInvoice] Enriched items:", enrichedItems);
       setItems(enrichedItems);
 
-      // branch
-      if (r?.branches) {
-        setBranch(r.branches as BranchData);
-      } else if (r?.branch_id) {
+      // branch - Always load from IndexedDB to get complete data
+      if (r?.branch_id) {
         const bs = await getAllFromLocal("branches");
         const b =
           (bs || []).find((x: BranchData) => x.id === r.branch_id) || null;
         setBranch(b);
       }
 
-      // customer
-      if (r?.customers) {
-        setCustomer(r.customers as CustomerData);
-      } else if (r?.customer_id) {
+      // customer - Always load from IndexedDB to get complete data
+      if (r?.customer_id) {
         const cs = await getAllFromLocal("customers");
         const c =
           (cs || []).find((x: CustomerData) => x.id === r.customer_id) || null;
@@ -103,10 +99,11 @@ export default function RentalInvoice() {
         amount,
       };
     });
+    const discount = rental?.discount_amount || 0;
     const tax = 0; // يمكن إضافة ضريبة لاحقاً
-    const total = subtotal + tax;
-    return { lines, subtotal, tax, total };
-  }, [items]);
+    const total = subtotal - discount + tax;
+    return { lines, subtotal, discount, tax, total };
+  }, [items, rental]);
 
   const print = () => window.print();
 
@@ -245,6 +242,16 @@ export default function RentalInvoice() {
                   {totals.subtotal.toFixed(2)}
                 </td>
               </tr>
+              {totals.discount > 0 && (
+                <tr>
+                  <td className="p-2 border text-right" colSpan={5}>
+                    الخصم
+                  </td>
+                  <td className="p-2 border font-semibold text-red-600">
+                    -{totals.discount.toFixed(2)}
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td className="p-2 border text-right" colSpan={5}>
                   الضريبة
