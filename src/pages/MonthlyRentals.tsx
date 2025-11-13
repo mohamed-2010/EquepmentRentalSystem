@@ -96,6 +96,7 @@ export default function MonthlyRentals() {
     returnRentalItem,
     updateRental,
     deleteRental,
+    refresh,
   } = useOfflineRentals();
 
   const { data: userRole } = useQuery({
@@ -209,11 +210,34 @@ export default function MonthlyRentals() {
         discount_amount: editRentalValues.discount_amount,
       } as any);
 
-      // تحديث المعدات (يمكن تطوير هذا لاحقاً لإضافة/حذف معدات)
-      // حالياً سنترك المعدات كما هي ونركز على التواريخ والملاحظات
+      // إضافة المعدات الجديدة (التي ليس لها itemId)
+      const { saveToLocal } = await import("@/lib/offline/db");
+      const { v4: uuidv4 } = await import("uuid");
 
-      toast({ title: "تم تحديث عقد الإيجار" });
+      for (const item of editEquipment) {
+        if (!item.itemId && item.equipmentId) {
+          // هذه معدة جديدة، نحتاج لإضافتها
+          const rentalItem = {
+            id: uuidv4(),
+            rental_id: editRentalOpen.rental.id,
+            equipment_id: item.equipmentId,
+            start_date: editRentalOpen.rental.start_date,
+            quantity: item.quantity || 1,
+            notes: item.notes || "",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            synced: false,
+          };
+
+          await saveToLocal("rental_items", rentalItem);
+        }
+      }
+
+      toast({ title: "تم تحديث عقد الإيجار وإضافة المعدات الجديدة" });
       setEditRentalOpen({ open: false, rental: null });
+
+      // إعادة تحميل البيانات لتحديث قائمة المعدات
+      await refresh();
     } catch (e: any) {
       toast({
         title: "خطأ",

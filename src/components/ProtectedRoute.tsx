@@ -81,6 +81,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // 5) إذا لم نجد أي شيء، جرب user_branch_id مباشرة
+    if (!result?.branch_id) {
+      const branchId = localStorage.getItem("user_branch_id");
+      if (branchId) {
+        result = { ...result, branch_id: branchId };
+      }
+    }
+
+    console.log("[ProtectedRoute] Final userRole:", result);
     setUserRole(result);
     setRoleLoaded(true);
   }, [user]);
@@ -120,7 +129,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // المستخدم ليس لديه فرع وليس في صفحة الإعداد - وجهه للإعداد
-  if (!userRole?.branch_id && location.pathname !== "/setup") {
+  // ولكن فقط إذا كان userRole محدداً وليس null
+  if (userRole && !userRole?.branch_id && location.pathname !== "/setup") {
     return <Navigate to="/setup" state={{ from: location }} replace />;
   }
 
