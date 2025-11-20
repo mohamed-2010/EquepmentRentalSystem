@@ -94,6 +94,8 @@ export default function RentalInvoice() {
         id: it.id,
         name: it?.equipment?.name,
         code: it?.equipment?.code,
+        startDate: it.start_date?.split("T")[0] || "-",
+        returnDate: it.return_date?.split("T")[0] || "-",
         rate,
         quantity,
         days,
@@ -132,172 +134,163 @@ export default function RentalInvoice() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-white">
       <style>{`
         @media print {
           .no-print { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { margin: 10mm; }
+        }
+        .invoice-table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+        .invoice-table th,
+        .invoice-table td {
+          border: 1px solid #000;
+          padding: 8px;
+          text-align: center;
+        }
+        .invoice-table th {
+          background-color: #f5f5f5;
+          font-weight: bold;
         }
       `}</style>
-      <div className="max-w-3xl mx-auto bg-white border rounded-lg shadow-sm">
-        <div className="flex justify-between items-start p-6 border-b">
-          <div>
-            <h1 className="text-2xl font-bold">فاتورة إيجار</h1>
-            <p className="text-sm text-muted-foreground">
-              رقم العقد: {rental.id}
+      <div className="max-w-3xl mx-auto bg-white">
+        {/* Header with QR and Company Info */}
+        <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-black">
+          <div className="text-start">
+            <h1 className="text-xl font-bold mb-2">
+              {branch?.company_name || "مؤسسة عتبة المحلات لتأجير المعدات"}
+            </h1>
+            <p className="text-sm">ورشة عتبة المحلات لتأجير المعدات</p>
+            <p className="text-sm">طريق الملك فهد</p>
+            <p className="text-sm">
+              السجل التجاري: {branch?.commercial_registration || "1132113781"}
+            </p>
+            <p className="text-sm">الهاتف: {branch?.phone || "0550819844"}</p>
+          </div>
+          <div className="">
+            <QRCodeSVG
+              value={`Rental ID: ${rental.id}`}
+              size={80}
+              level="M"
+              includeMargin={false}
+            />
+          </div>
+        </div>
+
+        {/* Invoice Title and Info */}
+        <div className="text-center mb-4">
+          <h2 className="text-2xl font-bold">فاتورة ضريبية مبسطة - نقداً</h2>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1 mb-4 text-sm">
+          <div className="text-center">
+            <p>
+              <span className="font-bold">الرقم:</span>{" "}
+              {rental.invoice_number || "00000000"}
             </p>
           </div>
-          <div className="text-right">
-            <div className="font-semibold text-lg">
-              {branch?.company_name || `مؤسسة ${branch?.name || "الفرع"}`}
-            </div>
-            {/* {branch?.name && branch?.company_name && (
-              <div className="text-sm font-medium text-primary">
-                الفرع: {branch.name}
-              </div>
-            )} */}
-            {branch?.tax_number && (
-              <div className="text-sm">الرقم الضريبي: {branch.tax_number}</div>
-            )}
-            {branch?.commercial_registration && (
-              <div className="text-sm">
-                السجل التجاري: {branch.commercial_registration}
-              </div>
-            )}
-            {branch?.phone && (
-              <div className="text-sm">هاتف: {branch.phone}</div>
-            )}
+          <div className="text-center" dir="ltr">
+            <p>
+              <span className="font-bold">التاريخ:</span>{" "}
+              {new Date(rental.created_at).toLocaleDateString("ar-EG")}
+            </p>
+            <p>
+              <span className="font-bold">الوقت:</span>{" "}
+              {new Date(rental.created_at).toLocaleTimeString("ar-EG")}
+            </p>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 p-6">
-          <div>
-            <div className="text-sm text-muted-foreground">العميل</div>
-            <div className="font-medium">
+          <div className="mb-4 text-sm text-center">
+            <p>
+              <span className="font-bold">اسم العميل:</span>{" "}
               {customer?.full_name || rental.customers?.full_name || "-"}
-            </div>
-            <div className="text-sm">
-              {customer?.phone || rental.customers?.phone || "-"}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-muted-foreground">تفاصيل العقد</div>
-            <div className="text-sm">
-              النوع: {rental.rental_type === "monthly" ? "شهري" : "يومي"}
-            </div>
-            <div className="text-sm">
-              تاريخ البداية: {String(rental.start_date).slice(0, 10)}
-            </div>
-            {rental.end_date && (
-              <div className="text-sm">
-                تاريخ النهاية: {String(rental.end_date).slice(0, 10)}
-              </div>
-            )}
-            {rental.is_fixed_duration && rental.expected_end_date && (
-              <div className="text-sm">
-                الإرجاع المتوقع: {String(rental.expected_end_date).slice(0, 10)}
-              </div>
-            )}
-            {rental.status && (
-              <div className="text-sm">
-                الحالة: {rental.status === "completed" ? "منتهي" : "نشط"}
-              </div>
-            )}
+            </p>
           </div>
         </div>
 
-        <div className="p-6 pt-0">
-          <table className="w-full text-sm border">
-            <thead className="bg-muted">
+        {/* Customer adderss and phone in table => address(as header in right): *****(as td) | phone: ***** */}
+        <div className="mb-4">
+          <table className="invoice-table w-full">
+            <thead>
               <tr>
-                <th className="p-2 border">المعدة</th>
-                <th className="p-2 border">الكود</th>
-                <th className="p-2 border">الكمية</th>
-                <th className="p-2 border">السعر/يوم</th>
-                <th className="p-2 border">المدة (يوم)</th>
-                <th className="p-2 border">الإجمالي</th>
+                <th>العنوان</th>
+                <th>رقم الهاتف</th>
               </tr>
             </thead>
             <tbody>
-              {totals.lines.map((ln) => (
-                <tr key={ln.id}>
-                  <td className="p-2 border">{ln.name || "-"}</td>
-                  <td className="p-2 border">{ln.code || "-"}</td>
-                  <td className="p-2 border">{ln.quantity}</td>
-                  <td className="p-2 border">
-                    {Number(ln.rate || 0).toFixed(2)}
-                  </td>
-                  <td className="p-2 border">{ln.days}</td>
-                  <td className="p-2 border">
-                    {Number(ln.amount || 0).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
+              <tr>
+                <td>{customer?.address || rental.customers?.address || "-"}</td>
+                <td>{customer?.phone || rental.customers?.phone || "-"}</td>
+              </tr>
             </tbody>
-            <tfoot>
-              <tr>
-                <td className="p-2 border text-right" colSpan={5}>
-                  المجموع
-                </td>
-                <td className="p-2 border font-semibold">
-                  {totals.subtotal.toFixed(2)}
-                </td>
-              </tr>
-              {totals.discount > 0 && (
-                <tr>
-                  <td className="p-2 border text-right" colSpan={5}>
-                    الخصم
-                  </td>
-                  <td className="p-2 border font-semibold text-red-600">
-                    -{totals.discount.toFixed(2)}
-                  </td>
-                </tr>
-              )}
-              {totals.deposit > 0 && (
-                <tr>
-                  <td className="p-2 border text-right" colSpan={5}>
-                    مبلغ التأمين
-                  </td>
-                  <td className="p-2 border font-semibold text-red-600">
-                    -{totals.deposit.toFixed(2)}
-                  </td>
-                </tr>
-              )}
-              <tr>
-                <td className="p-2 border text-right" colSpan={5}>
-                  الإجمالي النهائي
-                </td>
-                <td className="p-2 border font-bold text-primary">
-                  {totals.total.toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
 
-        {/* QR Code Section */}
-        <div className="px-6 pb-4 flex justify-center items-center">
-          <div className="text-center">
-            <QRCodeSVG
-              value="Branch Gear Pro - نظام إدارة تأجير المعدات"
-              size={120}
-              level="M"
-              includeMargin={true}
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Branch Gear Pro
-            </p>
+        {/* Items Table */}
+        <table className="invoice-table mb-4">
+          <thead>
+            <tr>
+              <th>المنتج</th>
+              <th>السعر</th>
+              <th>الكمية</th>
+              <th>الأيام</th>
+              <th>الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody>
+            {totals.lines.map((ln) => (
+              <tr key={ln.id}>
+                <td>{ln.name}</td>
+                <td>{ln.rate.toFixed(2)} ر.س</td>
+                <td>{ln.quantity}</td>
+                <td>{ln.days}</td>
+                <td>{ln.amount.toFixed(2)} ر.س</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Totals */}
+        <div className="border-2 border-black p-4 mb-4">
+          <div className="flex justify-between items-center text-lg mb-2">
+            <span className="font-bold">المجموع:</span>
+            <span className="font-bold">{totals.subtotal.toFixed(2)} ر.س</span>
+          </div>
+          {totals.discount > 0 && (
+            <div className="flex justify-between items-center text-lg mb-2">
+              <span className="font-bold">الخصم:</span>
+              <span className="font-bold">
+                {totals.discount.toFixed(2)} ر.س
+              </span>
+            </div>
+          )}
+          {totals.deposit > 0 && (
+            <div className="flex justify-between items-center text-lg mb-2">
+              <span className="font-bold">التأمين:</span>
+              <span className="font-bold">{totals.deposit.toFixed(2)} ر.س</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center text-xl border-t-2 border-black pt-2">
+            <span className="font-bold">الباقي:</span>
+            <span className="font-bold">{totals.total.toFixed(2)} ر.س</span>
           </div>
         </div>
 
+        {/* Footer */}
+        <div className="text-center text-sm border-t-2 border-black pt-2">
+          <p className="font-bold">نسعد بخدمة عملائنا الكرام</p>
+        </div>
+
         {rental.notes && (
-          <div className="px-6 pb-2 text-sm">
-            <div className="text-muted-foreground">ملاحظات:</div>
+          <div className="mt-4 text-sm">
+            <div className="font-bold">ملاحظات:</div>
             <div>{rental.notes}</div>
           </div>
         )}
 
-        <div className="flex items-center justify-between p-6 border-t no-print">
+        <div className="flex items-center justify-between mt-6 no-print">
           <Button
             type="button"
             onClick={() => navigate(-1)}

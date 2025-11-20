@@ -95,6 +95,23 @@ export interface MaintenanceRequestData {
   synced: boolean;
 }
 
+export interface MaintenanceData {
+  id: string;
+  customer_id: string;
+  date: string;
+  total_cost: number;
+  notes?: string;
+  items: {
+    id?: string;
+    equipmentId: string;
+    description: string;
+    cost: number;
+    notes?: string;
+  }[];
+  status: "pending" | "in_progress" | "completed";
+  created_at: string;
+}
+
 export interface ExpenseData {
   id: string;
   branch_id: string;
@@ -130,7 +147,7 @@ let dbInstance: IDBPDatabase | null = null;
 export async function getDB(): Promise<IDBPDatabase> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB("branch-gear-offline", 5, {
+  dbInstance = await openDB("branch-gear-offline", 6, {
     upgrade(db, oldVersion) {
       // Customers store
       if (!db.objectStoreNames.contains("customers")) {
@@ -190,6 +207,15 @@ export async function getDB(): Promise<IDBPDatabase> {
         expensesStore.createIndex("by-branch", "branch_id");
         expensesStore.createIndex("by-synced", "synced");
         expensesStore.createIndex("by-date", "expense_date");
+      }
+
+      // Maintenance store (new)
+      if (!db.objectStoreNames.contains("maintenance")) {
+        const maintenanceStore = db.createObjectStore("maintenance", {
+          keyPath: "id",
+        });
+        maintenanceStore.createIndex("by-customer", "customer_id");
+        maintenanceStore.createIndex("by-status", "status");
       }
 
       // Sync queue store
@@ -321,3 +347,70 @@ export async function bulkSaveToLocal(
     throw e;
   }
 }
+
+// Maintenance operations
+export async function saveMaintenance(data: MaintenanceData): Promise<void> {
+  const db = await getDB();
+  await db.put("maintenance", data);
+}
+
+export async function getMaintenance(
+  id: string
+): Promise<MaintenanceData | undefined> {
+  const db = await getDB();
+  return await db.get("maintenance", id);
+}
+
+export async function getAllMaintenance(): Promise<MaintenanceData[]> {
+  const db = await getDB();
+  return await db.getAll("maintenance");
+}
+
+export async function deleteMaintenance(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("maintenance", id);
+}
+
+export async function getMaintenanceByCustomer(
+  customerId: string
+): Promise<MaintenanceData[]> {
+  const db = await getDB();
+  const index = db.transaction("maintenance").store.index("by-customer");
+  return await index.getAll(customerId);
+}
+
+export async function getMaintenanceByStatus(
+  status: string
+): Promise<MaintenanceData[]> {
+  const db = await getDB();
+  const index = db.transaction("maintenance").store.index("by-status");
+  return await index.getAll(status);
+}
+
+// Helper object to group related operations
+export const offlineDb = {
+  // Generic operations
+  saveToLocal,
+  getFromLocal,
+  getAllFromLocal,
+  deleteFromLocal,
+  clearStore,
+  bulkSaveToLocal,
+
+  // Customers
+  getAllCustomers: () => getAllFromLocal("customers"),
+
+  // Equipment
+  getAllEquipment: () => getAllFromLocal("equipment"),
+
+  // Branches
+  getAllBranches: () => getAllFromLocal("branches"),
+
+  // Maintenance
+  saveMaintenance,
+  getMaintenance,
+  getAllMaintenance,
+  deleteMaintenance,
+  getMaintenanceByCustomer,
+  getMaintenanceByStatus,
+};

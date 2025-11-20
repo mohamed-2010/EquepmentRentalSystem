@@ -157,6 +157,12 @@ export function useOfflineRentals() {
     // تأكد من وجود start_date وإلا استخدم تاريخ اليوم
     const startDate =
       rentalData.start_date || new Date().toISOString().split("T")[0];
+
+    // إنشاء رقم فاتورة قصير (آخر 8 أرقام من timestamp)
+    const invoiceNumber = Math.floor(Date.now() / 1000)
+      .toString()
+      .slice(-8);
+
     const newRental: RentalData = {
       ...rentalData,
       id: rentalId,
@@ -164,6 +170,7 @@ export function useOfflineRentals() {
       equipment_id: primaryEquipmentId,
       created_by: currentUserId,
       deposit_amount: rentalData.deposit_amount || 0,
+      invoice_number: parseInt(invoiceNumber),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       synced: false,

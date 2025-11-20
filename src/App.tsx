@@ -27,6 +27,7 @@ import RentalInvoice from "./pages/RentalInvoice";
 import RentalContract from "./pages/RentalContract";
 import ComprehensiveReport from "./pages/ComprehensiveReport";
 import Backup from "./pages/Backup";
+import MaintenanceInvoice from "./pages/MaintenanceInvoice";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -131,6 +132,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <RentalInvoice />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/maintenance-invoice/:id"
+                  element={
+                    <ProtectedRoute>
+                      <MaintenanceInvoice />
                     </ProtectedRoute>
                   }
                 />

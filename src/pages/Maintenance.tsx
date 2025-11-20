@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import {
   DollarSign,
   User,
   Package,
+  Printer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -41,6 +43,7 @@ import {
 } from "@/components/ui/select";
 
 export default function Maintenance() {
+  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState("");
   const [selectedEquipment, setSelectedEquipment] = useState("");
@@ -467,6 +470,44 @@ export default function Maintenance() {
                       <span className="text-xl font-bold text-primary">
                         {request.cost || 0} ريال
                       </span>
+                    </div>
+
+                    <div className="flex justify-end mt-4">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          // حفظ بيانات الفاتورة للطباعة
+                          const maintenanceData = {
+                            id: request.id,
+                            customer_id: request.customer_id,
+                            date:
+                              request.completed_date || request.request_date,
+                            total_cost: request.cost || 0,
+                            notes: request.description,
+                            items: [
+                              {
+                                id: request.id,
+                                equipmentId: request.equipment_id || "",
+                                description: request.description,
+                                cost: request.cost || 0,
+                                notes: "",
+                              },
+                            ],
+                            status: "completed",
+                            created_at: request.created_at,
+                          };
+                          // حفظ مؤقت في sessionStorage
+                          sessionStorage.setItem(
+                            "temp_maintenance_invoice",
+                            JSON.stringify(maintenanceData)
+                          );
+                          navigate(`/maintenance-invoice/${request.id}`);
+                        }}
+                        className="gap-2"
+                      >
+                        <Printer className="h-4 w-4" />
+                        طباعة الفاتورة
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

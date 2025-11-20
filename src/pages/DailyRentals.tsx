@@ -84,6 +84,16 @@ export default function DailyRentals() {
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // State for adding equipment to existing rental
+  const [addEquipmentDialog, setAddEquipmentDialog] = useState<{
+    open: boolean;
+    rental: any;
+  }>({ open: false, rental: null });
+  const [newEquipmentToAdd, setNewEquipmentToAdd] = useState<RentalEquipment[]>(
+    [{ equipmentId: "", quantity: 1, notes: "" }]
+  );
+
   const { toast } = useToast();
   const isOnline = useOnlineStatus();
 
@@ -270,6 +280,76 @@ export default function DailyRentals() {
 
   const getRentalItems = (rentalId: string) => {
     return rentalItems.filter((item) => item.rental_id === rentalId);
+  };
+
+  // Add equipment to existing rental
+  const handleAddEquipmentToRental = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addEquipmentDialog.rental) return;
+
+    try {
+      const { saveToLocal } = await import("@/lib/offline/db");
+      const { v4: uuidv4 } = await import("uuid");
+
+      const validEquipment = newEquipmentToAdd.filter((e) => e.equipmentId);
+
+      if (validEquipment.length === 0) {
+        toast({
+          title: "خطأ",
+          description: "يجب اختيار معدة واحدة على الأقل",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      for (const item of validEquipment) {
+        const rentalItem = {
+          id: uuidv4(),
+          rental_id: addEquipmentDialog.rental.id,
+          equipment_id: item.equipmentId,
+          start_date: new Date().toISOString().split("T")[0],
+          quantity: item.quantity || 1,
+          notes: item.notes || "",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          synced: false,
+        };
+
+        await saveToLocal("rental_items", rentalItem);
+      }
+
+      await refresh();
+      setAddEquipmentDialog({ open: false, rental: null });
+      setNewEquipmentToAdd([{ equipmentId: "", quantity: 1, notes: "" }]);
+      toast({ title: "تم إضافة المعدات بنجاح" });
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error?.message || "حدث خطأ أثناء إضافة المعدات",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const addNewEquipmentRow = () => {
+    setNewEquipmentToAdd([
+      ...newEquipmentToAdd,
+      { equipmentId: "", quantity: 1, notes: "" },
+    ]);
+  };
+
+  const removeNewEquipmentRow = (index: number) => {
+    setNewEquipmentToAdd(newEquipmentToAdd.filter((_, i) => i !== index));
+  };
+
+  const updateNewEquipmentRow = (
+    index: number,
+    field: keyof RentalEquipment,
+    value: any
+  ) => {
+    const updated = [...newEquipmentToAdd];
+    updated[index] = { ...updated[index], [field]: value };
+    setNewEquipmentToAdd(updated);
   };
 
   const addEquipmentRow = () => {
@@ -775,7 +855,23 @@ export default function DailyRentals() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-sm">المعدات النشطة:</Label>
+                        <div className="flex justify-between items-center mb-2">
+                          <Label className="text-sm">المعدات النشطة:</Label>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAddEquipmentDialog({ open: true, rental });
+                              setNewEquipmentToAdd([
+                                { equipmentId: "", quantity: 1, notes: "" },
+                              ]);
+                            }}
+                            className="gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            إضافة معدة
+                          </Button>
+                        </div>
                         {activeItems.map((item) => (
                           <div
                             key={item.id}
@@ -1139,6 +1235,118 @@ export default function DailyRentals() {
                 إلغاء
               </Button>
               <Button type="submit">حفظ التعديلات</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for adding equipment to existing rental */}
+      <Dialog
+        open={addEquipmentDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddEquipmentDialog({ open: false, rental: null });
+            setNewEquipmentToAdd([{ equipmentId: "", quantity: 1, notes: "" }]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>إضافة معدات جديدة للإيجار</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddEquipmentToRental} className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label>المعدات الجديدة *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addNewEquipmentRow}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  إضافة معدة
+                </Button>
+              </div>
+
+              {newEquipmentToAdd.map((item, index) => (
+                <Card key={index} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <div className="flex-1 space-y-2">
+                        <Label>المعدة</Label>
+                        <EquipmentAutocomplete
+                          value={item.equipmentId}
+                          onChange={(v) =>
+                            updateNewEquipmentRow(index, "equipmentId", v)
+                          }
+                        />
+                      </div>
+                      <div className="w-32 space-y-2">
+                        <Label>العدد</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updateNewEquipmentRow(
+                              index,
+                              "quantity",
+                              parseInt(e.target.value) || 1
+                            )
+                          }
+                        />
+                      </div>
+                      {newEquipmentToAdd.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeNewEquipmentRow(index)}
+                          className="mt-8"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>ملاحظات</Label>
+                      <Textarea
+                        value={item.notes}
+                        onChange={(e) =>
+                          updateNewEquipmentRow(index, "notes", e.target.value)
+                        }
+                        placeholder="أي ملاحظات على هذه المعدة..."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                ℹ️ سيتم إضافة المعدات بتاريخ اليوم كتاريخ بداية الاستخدام. عند
+                إرجاع المعدة، سيتم حساب عدد الأيام من اليوم حتى تاريخ الإرجاع.
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setAddEquipmentDialog({ open: false, rental: null });
+                  setNewEquipmentToAdd([
+                    { equipmentId: "", quantity: 1, notes: "" },
+                  ]);
+                }}
+              >
+                إلغاء
+              </Button>
+              <Button type="submit">إضافة المعدات</Button>
             </div>
           </form>
         </DialogContent>
